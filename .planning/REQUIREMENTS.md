@@ -1,0 +1,118 @@
+# Requirements: REG_ML — Regulatory Reference Extraction Pipeline
+
+**Defined:** 2026-03-13
+**Core Value:** Reliably find every legal reference in German regulatory text (recall over precision)
+
+## v1 Requirements
+
+### Model Core
+
+- [ ] **MODL-01**: User can train a BIO token classifier (O, B-REF, I-REF) on gbert-large with a linear classification head
+- [ ] **MODL-02**: User can enable/disable CRF layer via config toggle to enforce valid BIO transitions
+- [ ] **MODL-03**: Model uses differential learning rates (lower for BERT encoder, higher for classification head)
+- [ ] **MODL-04**: Training uses mixed precision (fp16 on CUDA, disabled/bf16 on MPS) with automatic device detection
+- [ ] **MODL-05**: Training uses gradient clipping to prevent exploding gradients
+- [ ] **MODL-06**: Training uses linear warmup + linear decay learning rate schedule
+- [ ] **MODL-07**: User can freeze BERT or apply LoRA via config toggle as alternative to full fine-tuning
+- [ ] **MODL-08**: Model runs on Apple Silicon (MPS), NVIDIA GPU (CUDA), and CPU with automatic detection
+
+### Data Pipeline
+
+- [ ] **DATA-01**: Training data is generated on-the-fly by an LLM via OpenRouter API (no static dataset required)
+- [ ] **DATA-02**: LLM generates German regulatory text blocks with `<ref>...</ref>` tagged reference spans
+- [ ] **DATA-03**: Character-level reference spans are converted to token-level BIO labels using tokenizer offset_mapping
+- [ ] **DATA-04**: BIO conversion correctly handles BERT subword tokenization (first subtoken gets label, rest configurable)
+- [ ] **DATA-05**: Special tokens ([CLS], [SEP], [PAD]) receive label -100 (ignored by loss)
+- [ ] **DATA-06**: PyTorch IterableDataset generates training batches on-the-fly via LLM calls
+- [ ] **DATA-07**: LLM generation uses fixed seed per batch (epoch * 10000 + batch_idx * 100 + offset) for reproducibility
+- [ ] **DATA-08**: LLM generation includes retry logic with exponential backoff and configurable rate limiting
+- [ ] **DATA-09**: Generated data is validated — character offsets verified against actual text content
+- [ ] **DATA-10**: LLM prompt rotates across regulatory domains (BGB, KWG, MaRisk, DORA, DSGVO, CRR, etc.) for diversity
+- [ ] **DATA-11**: Generated data can be cached to disk for ensemble training and reproducibility
+
+### Gold Test Set
+
+- [ ] **GOLD-01**: User can generate a gold test set via CLI script (LLM-generated, persisted as JSON)
+- [ ] **GOLD-02**: Gold test set samples are marked as "needs_review" for manual validation
+- [ ] **GOLD-03**: Gold test set contains mix of positive (with references) and negative (no references) examples
+
+### Evaluation
+
+- [ ] **EVAL-01**: Evaluation reports entity-level Precision, Recall, and F1 (not token-level)
+- [ ] **EVAL-02**: Regex baseline extracts references using pattern matching (§, Artikel, Abs., Anhang, Verordnung, etc.)
+- [ ] **EVAL-03**: Regex baseline is evaluated with same metrics as ML model for direct comparison
+- [ ] **EVAL-04**: Evaluation reports per-reference-type metrics (§ references, Artikel, Tz., etc.)
+- [ ] **EVAL-05**: Evaluation dumps false positives and false negatives to file for error analysis
+- [ ] **EVAL-06**: Evaluation supports both exact match and partial match (IoU > 0.5) scoring
+
+### Ensemble
+
+- [ ] **ENSM-01**: User can enable bagging ensemble via config (n_estimators models with bootstrap resampling)
+- [ ] **ENSM-02**: First model generates and caches training data; subsequent models resample from cache
+- [ ] **ENSM-03**: Ensemble inference uses majority vote over BIO predictions at token level
+- [ ] **ENSM-04**: User can optionally enable gradient-boost-cached variant with error-weighted retraining
+
+### Inference
+
+- [ ] **INFR-01**: User can run CLI prediction on arbitrary German text and get reference spans with character offsets
+- [ ] **INFR-02**: Predictions include confidence scores (softmax probability or CRF marginals)
+- [ ] **INFR-03**: User can run batch prediction on multiple texts
+
+### Config & Setup
+
+- [ ] **CONF-01**: All hyperparameters controlled via single YAML config file (no hardcoded values)
+- [ ] **CONF-02**: Config supports CLI overrides (e.g., `--model.use_crf=false`)
+- [ ] **CONF-03**: Seeds are set for PyTorch, NumPy, and LLM generation for full reproducibility
+- [ ] **CONF-04**: Project runs after pip install + single env var (OPENROUTER_API_KEY), setup under 10 minutes
+
+### Documentation
+
+- [ ] **DOCS-01**: README.md with project description, setup guide, usage examples, and Mermaid pipeline diagram
+- [ ] **DOCS-02**: .env.example with OPENROUTER_API_KEY placeholder
+- [ ] **DOCS-03**: All classes and public methods have Google-style docstrings with type hints
+
+## v2 Requirements
+
+### Entity Linking
+- **LINK-01**: Map extracted reference spans to canonical law database entries (e.g., "§ 25a KWG" → structured record)
+
+### Nested References
+- **NEST-01**: Support nested/overlapping reference spans (e.g., reference within a reference)
+
+### Advanced Ensemble
+- **ENSM-05**: Automatic ensemble member selection based on validation performance
+- **ENSM-06**: Stacking ensemble with meta-learner
+
+### Monitoring
+- **MNTR-01**: Track data generation quality metrics over training runs
+- **MNTR-02**: Detect and alert on model performance degradation
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| REST API / FastAPI serving | PoC — CLI inference sufficient for evaluation |
+| Frontend / UI / dashboard | Engineers evaluate via CLI; no end-user interface needed |
+| Docker / containerization | Cross-platform solved via device detection; no deployment target |
+| CI/CD pipeline | Manual workflow; no automated deployment |
+| MLflow / complex experiment tracking | wandb optional is sufficient; avoid over-engineering |
+| Multi-GPU / distributed training | Single device sufficient for PoC dataset sizes |
+| Custom tokenizer training | gbert-large tokenizer already trained on German text |
+| Real-time streaming inference | Batch CLI is sufficient |
+| Hyperparameter search (Optuna) | Manual config variants; PoC needs one good config |
+| Annotation UI | LLM generates labeled data; manual spot-check of gold set |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| *(populated during roadmap creation)* | | |
+
+**Coverage:**
+- v1 requirements: 33 total
+- Mapped to phases: 0
+- Unmapped: 33 ⚠️
+
+---
+*Requirements defined: 2026-03-13*
+*Last updated: 2026-03-13 after initial definition*
