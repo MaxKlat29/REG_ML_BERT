@@ -1,0 +1,50 @@
+import os
+import pytest
+
+
+@pytest.fixture
+def default_config_path(tmp_path):
+    """Write default.yaml content to tmp_path and return the path."""
+    yaml_content = """\
+project:
+  name: "regulatory-ref-extraction"
+  seed: 42
+
+device:
+  auto_detect: true
+
+model:
+  name: "deepset/gbert-large"
+  use_crf: false
+  freeze_backbone: false
+  use_lora: false
+  lora_rank: 16
+
+training:
+  batch_size: 4
+  learning_rate_backbone: 2.0e-5
+  learning_rate_head: 1.0e-4
+  warmup_steps: 100
+  max_grad_norm: 1.0
+  num_epochs: 3
+  mixed_precision: "bf16"
+
+data:
+  max_seq_length: 512
+  samples_per_batch: 8
+  negative_sample_ratio: 0.4
+  cache_dir: "data/cache"
+  gold_test_dir: "data/gold_test"
+  llm_seed: 1337
+  llm_model: "google/gemini-flash-1.5"
+
+ensemble:
+  enabled: false
+  n_estimators: 3
+
+evaluation:
+  output_dir: "evaluation_output"
+"""
+    config_file = tmp_path / "default.yaml"
+    config_file.write_text(yaml_content)
+    return str(config_file)
