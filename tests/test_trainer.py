@@ -643,7 +643,7 @@ class TestRunPyTrainSubcommand:
             spec = importlib.util.spec_from_file_location(
                 "run", "/Users/Admin/REG_ML/run.py"
             )
-            run_module = importlib.util.load_from_spec(spec)
+            run_module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(run_module)
 
             with patch("sys.argv", ["run.py", "train"]):

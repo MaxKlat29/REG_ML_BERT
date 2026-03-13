@@ -36,6 +36,7 @@ data:
 ensemble:
   enabled: false
   n_estimators: 3
+  use_gradient_boost: false
 
 evaluation:
   output_dir: "evaluation_output"
