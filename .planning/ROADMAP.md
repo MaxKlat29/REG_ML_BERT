@@ -64,8 +64,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — RegulatoryNERModel (gbert-large + linear head, optional CRF layer, LoRA/freeze toggle via config)
-- [ ] 03-02-PLAN.md — Trainer (differential LR AdamW, warmup + linear decay, mixed precision via Accelerate, gradient clipping, checkpoint saving, ensemble driver with majority vote)
+- [x] 03-01-PLAN.md — RegulatoryNERModel (gbert-large + linear head, optional CRF layer, LoRA/freeze toggle via config)
+- [x] 03-02-PLAN.md — Trainer (differential LR AdamW, warmup + linear decay, mixed precision via Accelerate, gradient clipping, checkpoint saving, ensemble driver with majority vote)
 
 ### Phase 4: Evaluation + Inference
 **Goal**: The PoC delivers its verdict — a comparison table showing whether the ML model beats the regex baseline on recall over the frozen gold test set — and a CLI that converts arbitrary German text to reference spans
@@ -77,11 +77,11 @@ Plans:
   3. Evaluation reports both exact match and partial match (IoU > 0.5) scores
   4. User runs `python run.py predict --text "Gemäß § 25a Abs. 1 KWG gilt folgendes"` and receives character-offset spans with confidence scores in under 5 seconds
   5. User runs batch prediction on a list of texts and all return valid span output; all public methods and classes have Google-style docstrings with type hints
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: Evaluator (seqeval entity-level P/R/F1, per-type breakdown, exact + IoU scoring, FP/FN dump, side-by-side ML vs regex comparison table)
-- [ ] 04-02: Predictor + CLI integration (load checkpoint, text → span list with confidence scores, batch prediction, run.py train/evaluate/predict subcommands, Google-style docstrings across all modules)
+- [ ] 04-01-PLAN.md — Evaluator (extend metrics.py with IoU/typed spans/BIO decode, extend regex_baseline.py with extract_typed, extend evaluator.py with ML model eval, per-type breakdown, FP/FN dump, comparison table)
+- [ ] 04-02-PLAN.md — Predictor + CLI integration (Predictor class with predict/predict_batch, run.py evaluate/predict subcommands, Google-style docstrings across all modules)
 
 ## Progress
 
