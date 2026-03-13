@@ -68,19 +68,77 @@ class LLMGeneratedDataset(IterableDataset):
 
     def _iter_from_llm(self) -> Iterator[dict]:
         """Generate samples via LLM, apply BIO conversion, yield encodings."""
+        import sys
+
         worker_info = get_worker_info()
         worker_id = worker_info.id if worker_info else 0
         num_workers = worker_info.num_workers if worker_info else 1
 
         batch_idx = worker_id
-        samples_per_worker = self.config.data.samples_per_batch
+        total = self.config.data.samples_per_batch
 
-        for _ in range(samples_per_worker):
+        generated = 0
+        skipped = 0
+        for i in range(total):
             seed = self.epoch * 10000 + batch_idx * 100 + worker_id
+            domain = get_domain_for_seed(seed)
+            # Progress bar
+            pct = (i + 1) / total * 100
+            bar_len = 30
+            filled = int(bar_len * (i + 1) // total)
+            bar = "█" * filled + "░" * (bar_len - filled)
+            print(
+                f"\r  [{bar}] {i+1}/{total} ({pct:.0f}%) | "
+                f"Epoch {self.epoch} | seed={seed} | domain={domain}",
+                end="", flush=True,
+            )
             sample = self._generate_sample(seed)
             if sample is not None:
+                generated += 1
+                # Show the generated text preview
+                print(flush=True)  # newline after progress bar
+                self._print_sample_preview(sample, seed, domain, generated)
                 yield sample
+            else:
+                skipped += 1
             batch_idx += num_workers
+
+        print(flush=True)  # final newline
+        print(
+            f"  ✓ Epoch {self.epoch} done: {generated} samples generated, "
+            f"{skipped} skipped"
+        )
+
+    def _print_sample_preview(self, sample: dict, seed: int, domain: str, idx: int):
+        """Print a compact live preview of the generated sample."""
+        from src.data.bio_converter import LABEL_B_REF, LABEL_I_REF
+
+        labels = sample["labels"]
+        input_ids = sample["input_ids"]
+
+        # Count ref tokens
+        b_count = labels.count(LABEL_B_REF) if isinstance(labels, list) else sum(1 for l in labels if l == LABEL_B_REF)
+        i_count = labels.count(LABEL_I_REF) if isinstance(labels, list) else sum(1 for l in labels if l == LABEL_I_REF)
+        total_ref = b_count + i_count
+        num_entities = b_count  # each B-REF starts an entity
+
+        # Decode tokens to show a text snippet
+        text_tokens = self.tokenizer.decode(
+            [t for t, m in zip(input_ids, sample["attention_mask"]) if m == 1],
+            skip_special_tokens=True,
+        )
+        preview = text_tokens[:120].replace("\n", " ")
+        if len(text_tokens) > 120:
+            preview += "..."
+
+        # Color coding
+        if num_entities > 0:
+            tag = f"✓ {num_entities} ref(s), {total_ref} tokens"
+        else:
+            tag = "○ negative sample (no refs)"
+
+        print(f"    #{idx} [{domain}] {tag}")
+        print(f"       \033[2m{preview}\033[0m")
 
     def _generate_sample(self, seed: int) -> dict | None:
         """Generate a single training sample for the given seed.

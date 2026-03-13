@@ -15,6 +15,17 @@ from __future__ import annotations
 import argparse
 import sys
 
+import logging
+
+from dotenv import load_dotenv
+load_dotenv()  # Load .env before any module reads OPENROUTER_API_KEY
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(asctime)s] %(name)s — %(message)s",
+    datefmt="%H:%M:%S",
+)
+
 
 def main(argv: list[str] | None = None) -> None:
     """Main entry point.
@@ -75,27 +86,34 @@ def _run_train(args) -> None:
     from src.model.ner_model import RegulatoryNERModel
 
     # Load config with optional CLI overrides
-    cli_args = args.overrides if hasattr(args, "overrides") else []
-    config = load_config(cli_args=cli_args)
+    overrides = args.overrides if hasattr(args, "overrides") else []
+    print(f"[run.py] Loading config with overrides: {overrides}")
+    config = load_config(overrides=overrides)
 
     # Seed and device setup
     set_seed(config.project.seed)
     device = get_device()
+    print(f"[run.py] Seed: {config.project.seed} | Device: {device}")
 
     # Mixed precision
     mixed_precision = resolve_mixed_precision(config, device)
+    print(f"[run.py] Mixed precision: {mixed_precision}")
 
     # Accelerator
     accelerator = Accelerator(mixed_precision=mixed_precision)
 
     # Tokenizer — BertTokenizerFast (not AutoTokenizer; see decision in STATE.md)
+    print(f"[run.py] Loading tokenizer: {config.model.name}")
     tokenizer = BertTokenizerFast.from_pretrained(config.model.name)
+    print(f"[run.py] Tokenizer loaded. Vocab size: {tokenizer.vocab_size}")
 
     if config.ensemble.enabled:
+        print(f"[run.py] Ensemble mode: {config.ensemble.n_estimators} models")
         checkpoint_paths = train_ensemble(config, tokenizer, accelerator)
         for path in checkpoint_paths:
             print(f"Ensemble checkpoint: {path}")
     else:
+        print(f"[run.py] Single model training — CRF: {config.model.use_crf}, LoRA: {config.model.use_lora}")
         model = RegulatoryNERModel(config)
         trainer = Trainer(config, model, tokenizer, accelerator)
         checkpoint_path = trainer.train()

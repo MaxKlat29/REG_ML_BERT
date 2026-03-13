@@ -22,6 +22,14 @@ from torch.optim import AdamW
 from torch.utils.data import DataLoader
 from transformers import get_linear_schedule_with_warmup
 
+
+def _collate_to_tensors(batch: list[dict]) -> dict[str, torch.Tensor]:
+    """Stack list-of-dicts into a dict-of-tensors for the model."""
+    return {
+        key: torch.tensor([sample[key] for sample in batch])
+        for key in batch[0]
+    }
+
 from src.data.dataset import LLMGeneratedDataset
 from src.model.ner_model import RegulatoryNERModel
 
@@ -254,6 +262,9 @@ class Trainer:
         final_ckpt_path: Path | None = None
 
         for epoch in range(config.training.num_epochs):
+            print(f"\n{'━'*60}")
+            print(f" Epoch {epoch+1}/{config.training.num_epochs} — generating samples via LLM...")
+            print(f"{'━'*60}")
             # Recreate dataset each epoch for fresh seeds (Pitfall 5)
             dataset = LLMGeneratedDataset(
                 config,
@@ -261,7 +272,7 @@ class Trainer:
                 epoch=epoch,
                 cache_path=self.cache_path,
             )
-            dataloader = DataLoader(dataset, batch_size=config.training.batch_size)
+            dataloader = DataLoader(dataset, batch_size=config.training.batch_size, collate_fn=_collate_to_tensors)
             dataloader = self.accelerator.prepare(dataloader)
 
             epoch_loss = 0.0
@@ -292,9 +303,14 @@ class Trainer:
 
                 epoch_loss += loss.item()
                 num_batches += 1
+                lr_now = scheduler.get_last_lr()[0]
+                print(
+                    f"  ▸ Batch {num_batches} — loss: {loss.item():.4f} | "
+                    f"lr: {lr_now:.2e}"
+                )
 
             avg_loss = epoch_loss / max(num_batches, 1)
-            logger.info("Epoch %d/%d — avg loss: %.4f", epoch + 1, config.training.num_epochs, avg_loss)
+            print(f"\n  ✓ Epoch {epoch+1}/{config.training.num_epochs} complete — avg loss: {avg_loss:.4f}")
 
             # Save checkpoint after each epoch
             final_ckpt_path = save_checkpoint(
@@ -306,7 +322,11 @@ class Trainer:
                 accelerator=self.accelerator,
                 run_id=self.run_id,
             )
+            print(f"  💾 Checkpoint saved: {final_ckpt_path}")
 
+        print(f"\n{'━'*60}")
+        print(f" Training complete! Final checkpoint: {final_ckpt_path}")
+        print(f"{'━'*60}")
         return final_ckpt_path
 
 
