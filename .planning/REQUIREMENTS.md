@@ -39,8 +39,8 @@
 ### Evaluation
 
 - [ ] **EVAL-01**: Evaluation reports entity-level Precision, Recall, and F1 (not token-level)
-- [ ] **EVAL-02**: Regex baseline extracts references using pattern matching (§, Artikel, Abs., Anhang, Verordnung, etc.)
-- [ ] **EVAL-03**: Regex baseline is evaluated with same metrics as ML model for direct comparison
+- [x] **EVAL-02**: Regex baseline extracts references using pattern matching (§, Artikel, Abs., Anhang, Verordnung, etc.)
+- [x] **EVAL-03**: Regex baseline is evaluated with same metrics as ML model for direct comparison
 - [ ] **EVAL-04**: Evaluation reports per-reference-type metrics (§ references, Artikel, Tz., etc.)
 - [ ] **EVAL-05**: Evaluation dumps false positives and false negatives to file for error analysis
 - [ ] **EVAL-06**: Evaluation supports both exact match and partial match (IoU > 0.5) scoring
@@ -67,8 +67,8 @@
 
 ### Documentation
 
-- [ ] **DOCS-01**: README.md with project description, setup guide, usage examples, and Mermaid pipeline diagram
-- [ ] **DOCS-02**: .env.example with OPENROUTER_API_KEY placeholder
+- [x] **DOCS-01**: README.md with project description, setup guide, usage examples, and Mermaid pipeline diagram
+- [x] **DOCS-02**: .env.example with OPENROUTER_API_KEY placeholder
 - [ ] **DOCS-03**: All classes and public methods have Google-style docstrings with type hints
 
 ## v2 Requirements
@@ -110,10 +110,10 @@
 | CONF-02 | Phase 1 | Complete |
 | CONF-03 | Phase 1 | Complete |
 | CONF-04 | Phase 1 | Complete |
-| EVAL-02 | Phase 1 | Pending |
-| EVAL-03 | Phase 1 | Pending |
-| DOCS-01 | Phase 1 | Pending |
-| DOCS-02 | Phase 1 | Pending |
+| EVAL-02 | Phase 1 | Complete |
+| EVAL-03 | Phase 1 | Complete |
+| DOCS-01 | Phase 1 | Complete |
+| DOCS-02 | Phase 1 | Complete |
 | DATA-01 | Phase 2 | Pending |
 | DATA-02 | Phase 2 | Pending |
 | DATA-03 | Phase 2 | Pending |
@@ -156,4 +156,4 @@
 
 ---
 *Requirements defined: 2026-03-13*
-*Last updated: 2026-03-13 after 01-01 completion (CONF-01..04 complete)*
+*Last updated: 2026-03-13 after 01-02 completion (EVAL-02, EVAL-03, DOCS-01, DOCS-02 complete)*

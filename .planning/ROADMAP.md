@@ -12,7 +12,7 @@ Four phases that follow the natural dependency chain of an ML pipeline: lay the 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation** - Project scaffold, YAML config, device detection, and regex baseline
+- [x] **Phase 1: Foundation** - Project scaffold, YAML config, device detection, and regex baseline
 - [ ] **Phase 2: Data Pipeline** - LLM data generator, BIO converter, IterableDataset, and frozen gold test set
 - [ ] **Phase 3: Model + Training** - gbert-large token classifier, training loop, and optional CRF/ensemble
 - [ ] **Phase 4: Evaluation + Inference** - Full eval harness, baseline comparison, CLI inference, and PoC packaging
@@ -32,7 +32,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 01-01: Project scaffold, YAML config layer (OmegaConf), CLI entry point skeleton, device detection, fixed-seed setup
-- [ ] 01-02: Regex baseline (all German legal reference patterns), entity-level evaluation wrapper using seqeval, README + .env.example
+- [x] 01-02: Regex baseline (all German legal reference patterns), entity-level evaluation wrapper using seqeval, README + .env.example
 
 ### Phase 2: Data Pipeline
 **Goal**: LLM-generated training data flows into the model input format with verified BIO label correctness, and the gold test set is frozen on disk before any model training begins
@@ -90,7 +90,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 1/2 | In progress | - |
+| 1. Foundation | 2/2 | Complete | 2026-03-13 |
 | 2. Data Pipeline | 0/3 | Not started | - |
 | 3. Model + Training | 0/2 | Not started | - |
 | 4. Evaluation + Inference | 0/2 | Not started | - |
