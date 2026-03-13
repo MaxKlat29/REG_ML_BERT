@@ -47,9 +47,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Async LLM client (OpenRouter/Gemini Flash, httpx, tenacity retry, ref-tag parser, domain rotation)
-- [ ] 02-02-PLAN.md — BIO converter (char-span to token-level BIO via offset_mapping), JSONL disk cache, IterableDataset with worker sharding
-- [ ] 02-03-PLAN.md — Gold test set builder (LLM-generated, fixed seed, JSON persistence, needs_review flag, positive/negative mix)
+- [x] 02-01-PLAN.md — Async LLM client (OpenRouter/Gemini Flash, httpx, tenacity retry, ref-tag parser, domain rotation)
+- [x] 02-02-PLAN.md — BIO converter (char-span to token-level BIO via offset_mapping), JSONL disk cache, IterableDataset with worker sharding
+- [x] 02-03-PLAN.md — Gold test set builder (LLM-generated, fixed seed, JSON persistence, needs_review flag, positive/negative mix)
 
 ### Phase 3: Model + Training
 **Goal**: A trained gbert-large token classifier checkpoint exists on disk, produced by a training loop that uses differential learning rates, warmup, and mixed precision, with CRF and ensemble available as config toggles
@@ -61,11 +61,11 @@ Plans:
   3. User sets `model.use_crf: true` in config and training runs with CRF enabled; user sets it to `false` and training runs without CRF — both paths produce a checkpoint
   4. User sets `ensemble.enabled: true` and trains N models; subsequent models resample from the cached data written by the first model
   5. Training runs on Apple Silicon (MPS) without OOM at batch_size=4 using mixed precision (bf16 or disabled); CUDA uses fp16
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 03-01: RegulatoryNERModel (gbert-large + linear head, optional CRF layer, LoRA/freeze toggle via config)
-- [ ] 03-02: Trainer (differential LR AdamW, warmup + linear decay, mixed precision via Accelerate, gradient clipping, checkpoint saving, per-epoch logging, ensemble driver)
+- [ ] 03-01-PLAN.md — RegulatoryNERModel (gbert-large + linear head, optional CRF layer, LoRA/freeze toggle via config)
+- [ ] 03-02-PLAN.md — Trainer (differential LR AdamW, warmup + linear decay, mixed precision via Accelerate, gradient clipping, checkpoint saving, ensemble driver with majority vote)
 
 ### Phase 4: Evaluation + Inference
 **Goal**: The PoC delivers its verdict — a comparison table showing whether the ML model beats the regex baseline on recall over the frozen gold test set — and a CLI that converts arbitrary German text to reference spans
