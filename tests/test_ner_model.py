@@ -66,14 +66,18 @@ def make_config(
 
 
 def make_batch(batch_size=2, seq_len=16, num_labels=3, with_labels=True):
-    """Create a small random batch of token IDs + attention mask (+ labels)."""
+    """Create a small random batch of token IDs + attention mask (+ labels).
+
+    Note on CRF masking: pytorch-crf requires mask[:,0] to be True (batch_first).
+    So we use -100 only for the last token ([SEP]), NOT for position 0 ([CLS]).
+    In the CRF forward, position 0 will have label 0 (O) which is valid.
+    """
     input_ids = torch.randint(0, 100, (batch_size, seq_len))
     attention_mask = torch.ones(batch_size, seq_len, dtype=torch.long)
     if not with_labels:
         return input_ids, attention_mask
-    # labels: mostly 0 (O), with -100 for first/last positions (special tokens)
+    # labels: mostly 0 (O), with -100 for last position only (SEP token)
     labels = torch.zeros(batch_size, seq_len, dtype=torch.long)
-    labels[:, 0] = -100   # [CLS]
     labels[:, -1] = -100  # [SEP]
     return input_ids, attention_mask, labels
 
@@ -143,7 +147,11 @@ class TestCRFToggle:
 
 
 class TestCRFHandlesMinus100:
-    """test_crf_handles_minus100: CRF path masks -100 labels; no IndexError, loss finite."""
+    """test_crf_handles_minus100: CRF path masks -100 labels; no IndexError, loss finite.
+
+    pytorch-crf requires mask[:,0] (first timestep) to be True.
+    So we set position 0 to label 0 (valid), and use -100 only for non-first positions.
+    """
 
     def test_crf_handles_minus100(self):
         cfg = make_config(use_crf=True)
@@ -157,8 +165,10 @@ class TestCRFHandlesMinus100:
         input_ids = torch.randint(0, 100, (batch_size, seq_len))
         attention_mask = torch.ones(batch_size, seq_len, dtype=torch.long)
 
-        # Heavy -100 masking: only middle positions are real tokens
+        # Heavy -100 masking: only positions 0 and 2..13 are real tokens
+        # Position 0 must be non-(-100) for pytorch-crf constraint (mask[:,0] must be True)
         labels = torch.full((batch_size, seq_len), -100, dtype=torch.long)
+        labels[:, 0] = 0    # first position must be valid (CRF constraint)
         labels[:, 2:14] = 0  # label O for positions 2..13
 
         # Must not raise IndexError / AssertionError / ValueError
