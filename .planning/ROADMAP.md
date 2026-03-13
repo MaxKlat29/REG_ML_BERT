@@ -31,7 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: Project scaffold, YAML config layer (OmegaConf), CLI entry point skeleton, device detection, fixed-seed setup
+- [x] 01-01: Project scaffold, YAML config layer (OmegaConf), CLI entry point skeleton, device detection, fixed-seed setup
 - [ ] 01-02: Regex baseline (all German legal reference patterns), entity-level evaluation wrapper using seqeval, README + .env.example
 
 ### Phase 2: Data Pipeline
@@ -90,7 +90,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/2 | Not started | - |
+| 1. Foundation | 1/2 | In progress | - |
 | 2. Data Pipeline | 0/3 | Not started | - |
 | 3. Model + Training | 0/2 | Not started | - |
 | 4. Evaluation + Inference | 0/2 | Not started | - |

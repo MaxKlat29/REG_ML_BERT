@@ -60,10 +60,10 @@
 
 ### Config & Setup
 
-- [ ] **CONF-01**: All hyperparameters controlled via single YAML config file (no hardcoded values)
-- [ ] **CONF-02**: Config supports CLI overrides (e.g., `--model.use_crf=false`)
-- [ ] **CONF-03**: Seeds are set for PyTorch, NumPy, and LLM generation for full reproducibility
-- [ ] **CONF-04**: Project runs after pip install + single env var (OPENROUTER_API_KEY), setup under 10 minutes
+- [x] **CONF-01**: All hyperparameters controlled via single YAML config file (no hardcoded values)
+- [x] **CONF-02**: Config supports CLI overrides (e.g., `--model.use_crf=false`)
+- [x] **CONF-03**: Seeds are set for PyTorch, NumPy, and LLM generation for full reproducibility
+- [x] **CONF-04**: Project runs after pip install + single env var (OPENROUTER_API_KEY), setup under 10 minutes
 
 ### Documentation
 
@@ -106,10 +106,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CONF-01 | Phase 1 | Pending |
-| CONF-02 | Phase 1 | Pending |
-| CONF-03 | Phase 1 | Pending |
-| CONF-04 | Phase 1 | Pending |
+| CONF-01 | Phase 1 | Complete |
+| CONF-02 | Phase 1 | Complete |
+| CONF-03 | Phase 1 | Complete |
+| CONF-04 | Phase 1 | Complete |
 | EVAL-02 | Phase 1 | Pending |
 | EVAL-03 | Phase 1 | Pending |
 | DOCS-01 | Phase 1 | Pending |
@@ -156,4 +156,4 @@
 
 ---
 *Requirements defined: 2026-03-13*
-*Last updated: 2026-03-13 after roadmap creation*
+*Last updated: 2026-03-13 after 01-01 completion (CONF-01..04 complete)*
