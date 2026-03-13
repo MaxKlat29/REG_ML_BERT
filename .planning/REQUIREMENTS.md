@@ -18,16 +18,16 @@
 
 ### Data Pipeline
 
-- [ ] **DATA-01**: Training data is generated on-the-fly by an LLM via OpenRouter API (no static dataset required)
-- [ ] **DATA-02**: LLM generates German regulatory text blocks with `<ref>...</ref>` tagged reference spans
+- [x] **DATA-01**: Training data is generated on-the-fly by an LLM via OpenRouter API (no static dataset required)
+- [x] **DATA-02**: LLM generates German regulatory text blocks with `<ref>...</ref>` tagged reference spans
 - [ ] **DATA-03**: Character-level reference spans are converted to token-level BIO labels using tokenizer offset_mapping
 - [ ] **DATA-04**: BIO conversion correctly handles BERT subword tokenization (first subtoken gets label, rest configurable)
 - [ ] **DATA-05**: Special tokens ([CLS], [SEP], [PAD]) receive label -100 (ignored by loss)
 - [ ] **DATA-06**: PyTorch IterableDataset generates training batches on-the-fly via LLM calls
-- [ ] **DATA-07**: LLM generation uses fixed seed per batch (epoch * 10000 + batch_idx * 100 + offset) for reproducibility
-- [ ] **DATA-08**: LLM generation includes retry logic with exponential backoff and configurable rate limiting
+- [x] **DATA-07**: LLM generation uses fixed seed per batch (epoch * 10000 + batch_idx * 100 + offset) for reproducibility
+- [x] **DATA-08**: LLM generation includes retry logic with exponential backoff and configurable rate limiting
 - [ ] **DATA-09**: Generated data is validated — character offsets verified against actual text content
-- [ ] **DATA-10**: LLM prompt rotates across regulatory domains (BGB, KWG, MaRisk, DORA, DSGVO, CRR, etc.) for diversity
+- [x] **DATA-10**: LLM prompt rotates across regulatory domains (BGB, KWG, MaRisk, DORA, DSGVO, CRR, etc.) for diversity
 - [ ] **DATA-11**: Generated data can be cached to disk for ensemble training and reproducibility
 
 ### Gold Test Set
@@ -114,16 +114,16 @@
 | EVAL-03 | Phase 1 | Complete |
 | DOCS-01 | Phase 1 | Complete |
 | DOCS-02 | Phase 1 | Complete |
-| DATA-01 | Phase 2 | Pending |
-| DATA-02 | Phase 2 | Pending |
+| DATA-01 | Phase 2 | Complete |
+| DATA-02 | Phase 2 | Complete |
 | DATA-03 | Phase 2 | Pending |
 | DATA-04 | Phase 2 | Pending |
 | DATA-05 | Phase 2 | Pending |
 | DATA-06 | Phase 2 | Pending |
-| DATA-07 | Phase 2 | Pending |
-| DATA-08 | Phase 2 | Pending |
+| DATA-07 | Phase 2 | Complete |
+| DATA-08 | Phase 2 | Complete |
 | DATA-09 | Phase 2 | Pending |
-| DATA-10 | Phase 2 | Pending |
+| DATA-10 | Phase 2 | Complete |
 | DATA-11 | Phase 2 | Pending |
 | GOLD-01 | Phase 2 | Pending |
 | GOLD-02 | Phase 2 | Pending |
