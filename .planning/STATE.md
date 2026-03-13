@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 02-03-PLAN.md — gold test set generator complete; Phase 2 data pipeline done; next is Phase 3 (03-01)
-last_updated: "2026-03-13T17:31:14.895Z"
+stopped_at: Completed 03-01-PLAN.md — RegulatoryNERModel implemented; 9 TDD tests; 64 total passing; next is 03-02 (Trainer)
+last_updated: "2026-03-13T18:16:14.407Z"
 last_activity: 2026-03-13 — Completed 02-03 (gold test set generator, 5 TDD tests, 55 total passing)
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 7
+  completed_plans: 6
   percent: 56
 ---
 
@@ -53,6 +53,7 @@ Progress: [█████░░░░░] 56%
 - Trend: steady
 
 *Updated after each plan completion*
+| Phase 03-model-training P01 | 4 | 1 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,9 @@ Recent decisions affecting current work:
 - 02-03: Mock call_openrouter at call site (scripts.generate_gold_test.call_openrouter) not source module after 'from ... import'
 - 02-03: Gold set pos/neg split is index-based (sample_index >= int(N*ratio)) not RNG-based — exact reproducibility without seeding random
 - 02-03: asyncio.coroutine removed in Python 3.14 — use async def side_effect functions with AsyncMock
+- [Phase 03-model-training]: CRF path uses BertModel not BertForTokenClassification to access raw last_hidden_state for manual linear head + CRF
+- [Phase 03-model-training]: pytorch-crf mask[:,0] must all be True — labels[:,0] must not be -100 in CRF forward
+- [Phase 03-model-training]: LoRA target_modules fallback: query/value -> q_proj/v_proj -> warn+skip for graceful degradation
 
 ### Pending Todos
 
@@ -90,6 +94,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13
-Stopped at: Completed 02-03-PLAN.md — gold test set generator complete; Phase 2 data pipeline done; next is Phase 3 (03-01)
+Last session: 2026-03-13T18:16:14.404Z
+Stopped at: Completed 03-01-PLAN.md — RegulatoryNERModel implemented; 9 TDD tests; 64 total passing; next is 03-02 (Trainer)
 Resume file: None

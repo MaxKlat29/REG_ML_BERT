@@ -92,5 +92,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete    | 2026-03-13 |
 | 2. Data Pipeline | 3/3 | Complete    | 2026-03-13 |
-| 3. Model + Training | 0/2 | Not started | - |
+| 3. Model + Training | 1/2 | In Progress|  |
 | 4. Evaluation + Inference | 0/2 | Not started | - |
