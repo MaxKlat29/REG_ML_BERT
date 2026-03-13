@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 04-01-PLAN.md — evaluation subsystem extended with ML inference, IoU, per-type breakdown, FP/FN dump; 49 new tests; 132 total passing
-last_updated: "2026-03-13T20:25:16.926Z"
+stopped_at: Completed 04-02-PLAN.md — Predictor class, evaluate/predict CLI subcommands, Google-style docstrings across all src/ modules; 146 tests total
+last_updated: "2026-03-13T20:33:05.130Z"
 last_activity: 2026-03-13 — Completed 02-03 (gold test set generator, 5 TDD tests, 55 total passing)
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 9
-  completed_plans: 8
+  completed_plans: 9
   percent: 56
 ---
 
@@ -56,6 +56,7 @@ Progress: [█████░░░░░] 56%
 | Phase 03-model-training P01 | 4 | 1 tasks | 4 files |
 | Phase 03-model-training P02 | 6 min | 2 tasks | 4 files |
 | Phase 04-evaluation-inference P01 | 8 min | 2 tasks | 4 files |
+| Phase 04-evaluation-inference P02 | 4 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,8 @@ Recent decisions affecting current work:
 - [Phase 04-evaluation-inference]: classify_span_type uses regex.search not word boundary — dots are non-word chars so \b fails after Art.
 - [Phase 04-evaluation-inference]: TYPED_PATTERNS: TEILZIFFER before PARAGRAPH to avoid Tz. numeric suffix being consumed by § pattern
 - [Phase 04-evaluation-inference]: evaluate_model dispatches on model._use_crf: non-CRF uses output.logits.argmax; CRF uses output[0] Viterbi list
+- [Phase 04-evaluation-inference]: predict() computes confidence as mean softmax prob at predicted label for tokens in span; CRF always returns confidence=1.0 (Viterbi has no marginals)
+- [Phase 04-evaluation-inference]: test_google_style_docstrings uses ast.parse not import/inspect — avoids model loading side effects during test collection
 
 ### Pending Todos
 
@@ -103,6 +106,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T20:25:16.922Z
-Stopped at: Completed 04-01-PLAN.md — evaluation subsystem extended with ML inference, IoU, per-type breakdown, FP/FN dump; 49 new tests; 132 total passing
+Last session: 2026-03-13T20:32:59.282Z
+Stopped at: Completed 04-02-PLAN.md — Predictor class, evaluate/predict CLI subcommands, Google-style docstrings across all src/ modules; 146 tests total
 Resume file: None

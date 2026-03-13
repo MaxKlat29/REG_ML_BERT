@@ -54,9 +54,9 @@
 
 ### Inference
 
-- [ ] **INFR-01**: User can run CLI prediction on arbitrary German text and get reference spans with character offsets
-- [ ] **INFR-02**: Predictions include confidence scores (softmax probability or CRF marginals)
-- [ ] **INFR-03**: User can run batch prediction on multiple texts
+- [x] **INFR-01**: User can run CLI prediction on arbitrary German text and get reference spans with character offsets
+- [x] **INFR-02**: Predictions include confidence scores (softmax probability or CRF marginals)
+- [x] **INFR-03**: User can run batch prediction on multiple texts
 
 ### Config & Setup
 
@@ -69,7 +69,7 @@
 
 - [x] **DOCS-01**: README.md with project description, setup guide, usage examples, and Mermaid pipeline diagram
 - [x] **DOCS-02**: .env.example with OPENROUTER_API_KEY placeholder
-- [ ] **DOCS-03**: All classes and public methods have Google-style docstrings with type hints
+- [x] **DOCS-03**: All classes and public methods have Google-style docstrings with type hints
 
 ## v2 Requirements
 
@@ -144,10 +144,10 @@
 | EVAL-04 | Phase 4 | Complete |
 | EVAL-05 | Phase 4 | Complete |
 | EVAL-06 | Phase 4 | Complete |
-| INFR-01 | Phase 4 | Pending |
-| INFR-02 | Phase 4 | Pending |
-| INFR-03 | Phase 4 | Pending |
-| DOCS-03 | Phase 4 | Pending |
+| INFR-01 | Phase 4 | Complete |
+| INFR-02 | Phase 4 | Complete |
+| INFR-03 | Phase 4 | Complete |
+| DOCS-03 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 42 total
