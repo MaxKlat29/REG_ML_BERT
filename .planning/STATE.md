@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 03-01-PLAN.md — RegulatoryNERModel implemented; 9 TDD tests; 64 total passing; next is 03-02 (Trainer)
-last_updated: "2026-03-13T18:16:14.407Z"
+stopped_at: Completed 03-02-PLAN.md — Trainer, ensemble, run.py; 19 TDD tests; 83 total passing; Phase 3 complete
+last_updated: "2026-03-13T18:23:59.019Z"
 last_activity: 2026-03-13 — Completed 02-03 (gold test set generator, 5 TDD tests, 55 total passing)
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
   percent: 56
 ---
 
@@ -54,6 +54,7 @@ Progress: [█████░░░░░] 56%
 
 *Updated after each plan completion*
 | Phase 03-model-training P01 | 4 | 1 tasks | 4 files |
+| Phase 03-model-training P02 | 6 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,10 @@ Recent decisions affecting current work:
 - [Phase 03-model-training]: CRF path uses BertModel not BertForTokenClassification to access raw last_hidden_state for manual linear head + CRF
 - [Phase 03-model-training]: pytorch-crf mask[:,0] must all be True — labels[:,0] must not be -100 in CRF forward
 - [Phase 03-model-training]: LoRA target_modules fallback: query/value -> q_proj/v_proj -> warn+skip for graceful degradation
+- [Phase 03-model-training]: resolve_mixed_precision: CUDA returns config value; MPS requires torch>=2.6 for bf16; CPU always no
+- [Phase 03-model-training]: Build optimizer before accelerator.prepare — passing all three together avoids prepare overwriting initial LRs
+- [Phase 03-model-training]: CHECKPOINT_BASE as patchable module constant — tests redirect checkpoint writes via patch() without touching config
+- [Phase 03-model-training]: Ensemble model 0 writes live-generated data to ensemble_base.jsonl; models 1..N read from it — minimises LLM API calls for N-1 estimators
 
 ### Pending Todos
 
@@ -94,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T18:16:14.404Z
-Stopped at: Completed 03-01-PLAN.md — RegulatoryNERModel implemented; 9 TDD tests; 64 total passing; next is 03-02 (Trainer)
+Last session: 2026-03-13T18:23:59.016Z
+Stopped at: Completed 03-02-PLAN.md — Trainer, ensemble, run.py; 19 TDD tests; 83 total passing; Phase 3 complete
 Resume file: None

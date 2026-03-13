@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Project scaffold, YAML config, device detection, and regex baseline
 - [x] **Phase 2: Data Pipeline** - LLM data generator, BIO converter, IterableDataset, and frozen gold test set (completed 2026-03-13)
-- [ ] **Phase 3: Model + Training** - gbert-large token classifier, training loop, and optional CRF/ensemble
+- [x] **Phase 3: Model + Training** - gbert-large token classifier, training loop, and optional CRF/ensemble (completed 2026-03-13)
 - [ ] **Phase 4: Evaluation + Inference** - Full eval harness, baseline comparison, CLI inference, and PoC packaging
 
 ## Phase Details
@@ -92,5 +92,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete    | 2026-03-13 |
 | 2. Data Pipeline | 3/3 | Complete    | 2026-03-13 |
-| 3. Model + Training | 1/2 | In Progress|  |
+| 3. Model + Training | 2/2 | Complete   | 2026-03-13 |
 | 4. Evaluation + Inference | 0/2 | Not started | - |
