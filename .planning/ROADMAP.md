@@ -13,7 +13,7 @@ Four phases that follow the natural dependency chain of an ML pipeline: lay the 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Project scaffold, YAML config, device detection, and regex baseline
-- [ ] **Phase 2: Data Pipeline** - LLM data generator, BIO converter, IterableDataset, and frozen gold test set
+- [x] **Phase 2: Data Pipeline** - LLM data generator, BIO converter, IterableDataset, and frozen gold test set (completed 2026-03-13)
 - [ ] **Phase 3: Model + Training** - gbert-large token classifier, training loop, and optional CRF/ensemble
 - [ ] **Phase 4: Evaluation + Inference** - Full eval harness, baseline comparison, CLI inference, and PoC packaging
 
@@ -91,6 +91,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete    | 2026-03-13 |
-| 2. Data Pipeline | 2/3 | In Progress|  |
+| 2. Data Pipeline | 3/3 | Complete   | 2026-03-13 |
 | 3. Model + Training | 0/2 | Not started | - |
 | 4. Evaluation + Inference | 0/2 | Not started | - |

@@ -32,9 +32,9 @@
 
 ### Gold Test Set
 
-- [ ] **GOLD-01**: User can generate a gold test set via CLI script (LLM-generated, persisted as JSON)
-- [ ] **GOLD-02**: Gold test set samples are marked as "needs_review" for manual validation
-- [ ] **GOLD-03**: Gold test set contains mix of positive (with references) and negative (no references) examples
+- [x] **GOLD-01**: User can generate a gold test set via CLI script (LLM-generated, persisted as JSON)
+- [x] **GOLD-02**: Gold test set samples are marked as "needs_review" for manual validation
+- [x] **GOLD-03**: Gold test set contains mix of positive (with references) and negative (no references) examples
 
 ### Evaluation
 
@@ -125,9 +125,9 @@
 | DATA-09 | Phase 2 | Complete |
 | DATA-10 | Phase 2 | Complete |
 | DATA-11 | Phase 2 | Complete |
-| GOLD-01 | Phase 2 | Pending |
-| GOLD-02 | Phase 2 | Pending |
-| GOLD-03 | Phase 2 | Pending |
+| GOLD-01 | Phase 2 | Complete |
+| GOLD-02 | Phase 2 | Complete |
+| GOLD-03 | Phase 2 | Complete |
 | MODL-01 | Phase 3 | Pending |
 | MODL-02 | Phase 3 | Pending |
 | MODL-03 | Phase 3 | Pending |

@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed 02-02-PLAN.md — BIO converter, JSONL cache, IterableDataset
-last_updated: "2026-03-13T17:30:00Z"
-last_activity: 2026-03-13 — Completed 02-02 (bio_converter, cache, LLMGeneratedDataset, 17 tests)
+stopped_at: Completed 02-03-PLAN.md — gold test set generator, 5 TDD tests, 55/55 suite green
+last_updated: "2026-03-13T17:26:00Z"
+last_activity: 2026-03-13 — Completed 02-03 (gold test set generator, generate_gold_set, 5 TDD tests)
 progress:
   total_phases: 4
-  completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
-  percent: 44
+  completed_phases: 2
+  total_plans: 5
+  completed_plans: 5
+  percent: 56
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 
 ## Current Position
 
-Phase: 2 of 4 (Data Pipeline) -- In Progress
-Plan: 2 of 3 in current phase (02-01, 02-02 complete)
-Status: In Progress
-Last activity: 2026-03-13 — Completed 02-02 (BIO converter, JSONL cache, IterableDataset, 17 tests)
+Phase: 2 of 4 (Data Pipeline) -- Complete
+Plan: 3 of 3 in current phase (02-01, 02-02, 02-03 complete)
+Status: Phase Complete — ready for Phase 3 (Model + Training)
+Last activity: 2026-03-13 — Completed 02-03 (gold test set generator, 5 TDD tests, 55 total passing)
 
-Progress: [████░░░░░░] 44%
+Progress: [█████░░░░░] 56%
 
 ## Performance Metrics
 
@@ -44,7 +44,7 @@ Progress: [████░░░░░░] 44%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. Foundation | 2/2 | 6 min | 3 min |
-| 2. Data Pipeline | 2/3 | 15 min | 7.5 min |
+| 2. Data Pipeline | 3/3 | 18 min | 6 min |
 | 3. Model + Training | 0/2 | - | - |
 | 4. Evaluation + Inference | 0/2 | - | - |
 
@@ -76,6 +76,9 @@ Recent decisions affecting current work:
 - 02-02: BertTokenizerFast instead of AutoTokenizer — transformers 5.x AutoTokenizer fails on gbert-large without tokenizer.json
 - 02-02: Special token detection via (start==0 AND end==0) on offset_mapping; first real token can have start=0 but end>0
 - 02-02: Worker seed formula: epoch*10000 + batch_idx*100 + worker_id for distinct samples per worker
+- 02-03: Mock call_openrouter at call site (scripts.generate_gold_test.call_openrouter) not source module after 'from ... import'
+- 02-03: Gold set pos/neg split is index-based (sample_index >= int(N*ratio)) not RNG-based — exact reproducibility without seeding random
+- 02-03: asyncio.coroutine removed in Python 3.14 — use async def side_effect functions with AsyncMock
 
 ### Pending Todos
 
@@ -88,5 +91,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-13
-Stopped at: Completed 02-02-PLAN.md — BIO converter + JSONL cache + IterableDataset complete, next is 02-03
+Stopped at: Completed 02-03-PLAN.md — gold test set generator complete; Phase 2 data pipeline done; next is Phase 3 (03-01)
 Resume file: None
