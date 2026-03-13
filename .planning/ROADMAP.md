@@ -28,7 +28,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. User runs a smoke test and the device auto-detected matches hardware (MPS on M1, CUDA on RTX, CPU otherwise)
   3. User runs the regex baseline on a set of sample regulatory sentences and receives Precision/Recall/F1 output covering all major reference types (§, Art., Abs., Tz., Nr., lit., Satz, Anhang, Verordnung)
   4. User edits `config.yaml` to change any hyperparameter and the change is picked up without touching code; CLI override `--model.use_crf=false` works
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
 - [ ] 01-01: Project scaffold, YAML config layer (OmegaConf), CLI entry point skeleton, device detection, fixed-seed setup
