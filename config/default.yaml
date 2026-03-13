@@ -16,17 +16,18 @@ model:
   lora_rank: 16
 
 training:
-  batch_size: 4
+  batch_size: 1
   learning_rate_backbone: 2.0e-5
   learning_rate_head: 1.0e-4
-  warmup_steps: 100
+  warmup_steps: 0
   max_grad_norm: 1.0
-  num_epochs: 3
-  mixed_precision: "bf16"  # "fp16", "bf16", or "no"
+  num_epochs: 1
+  mixed_precision: "no"
+  gradient_checkpointing: true  # Trade compute for memory on MPS
 
 data:
-  max_seq_length: 512
-  samples_per_batch: 8
+  max_seq_length: 64
+  samples_per_batch: 3
   negative_sample_ratio: 0.4
   cache_dir: "data/cache"
   gold_test_dir: "data/gold_test"

@@ -1,0 +1,18 @@
+# config/gpu.yaml
+# Production training on CUDA GPU (RTX 3090/4090)
+# Usage: python run.py train --config config/gpu.yaml
+# Or override from default: python run.py train training.batch_size=16 training.num_epochs=10
+
+training:
+  batch_size: 16
+  learning_rate_backbone: 2.0e-5
+  learning_rate_head: 1.0e-4
+  warmup_steps: 100
+  max_grad_norm: 1.0
+  num_epochs: 10
+  mixed_precision: "fp16"
+  gradient_checkpointing: false
+
+data:
+  max_seq_length: 512
+  samples_per_batch: 64

@@ -39,6 +39,11 @@ class RegulatoryNERModel(nn.Module):
         else:
             self._build_non_crf_path(model_name)
 
+        # Gradient checkpointing — trade compute for memory (critical on MPS)
+        training_cfg = getattr(config, "training", None)
+        if training_cfg and getattr(training_cfg, "gradient_checkpointing", False):
+            self._enable_gradient_checkpointing()
+
         # Freeze backbone BEFORE applying LoRA (LoRA overrides adapter params)
         if config.model.freeze_backbone:
             self._freeze_backbone()
@@ -64,6 +69,14 @@ class RegulatoryNERModel(nn.Module):
             model_name, num_labels=self.NUM_LABELS
         )
         self._use_crf = False
+
+    def _enable_gradient_checkpointing(self) -> None:
+        """Enable gradient checkpointing to reduce memory at the cost of compute."""
+        if self._use_crf:
+            self.bert.gradient_checkpointing_enable()
+        else:
+            self.bert_tc.gradient_checkpointing_enable()
+        logger.info("Gradient checkpointing enabled")
 
     def _freeze_backbone(self) -> None:
         """Set requires_grad=False on all BERT encoder parameters."""

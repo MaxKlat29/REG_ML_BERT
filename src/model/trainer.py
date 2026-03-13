@@ -15,6 +15,7 @@ from __future__ import annotations
 import collections
 import copy
 import logging
+import time
 from pathlib import Path
 
 import torch
@@ -245,80 +246,128 @@ class Trainer:
             Path to the final epoch checkpoint.
         """
         config = self.config
+        train_start = time.time()
 
         # Build optimizer BEFORE accelerator.prepare
+        print(f"  [setup] Building optimizer (backbone lr={config.training.learning_rate_backbone}, head lr={config.training.learning_rate_head})...", flush=True)
+        t0 = time.time()
         optimizer = build_optimizer(self.model, config)
+        print(f"  [setup] Optimizer built in {time.time()-t0:.1f}s", flush=True)
 
         # Approximate steps per epoch (IterableDataset has no __len__)
         steps_per_epoch = config.data.samples_per_batch
 
+        print(f"  [setup] Building scheduler (warmup={config.training.warmup_steps}, total={config.training.num_epochs * steps_per_epoch} steps)...", flush=True)
         scheduler = build_scheduler(optimizer, config, steps_per_epoch)
 
         # Prepare model, optimizer, scheduler together
+        print(f"  [setup] Accelerator.prepare(model, optimizer, scheduler)...", flush=True)
+        t0 = time.time()
         self.model, optimizer, scheduler = self.accelerator.prepare(
             self.model, optimizer, scheduler
         )
+        print(f"  [setup] Accelerator ready in {time.time()-t0:.1f}s | device={self.accelerator.device}", flush=True)
+
+        # Count parameters
+        total_params = sum(p.numel() for p in self.model.parameters())
+        trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        param_mb = total_params * 4 / 1024 / 1024  # fp32
+        print(f"  [setup] Parameters: {trainable_params:,} trainable / {total_params:,} total ({trainable_params/total_params*100:.1f}%)", flush=True)
+        print(f"  [setup] Model size: ~{param_mb:.0f} MB (fp32) / ~{param_mb/2:.0f} MB (bf16)", flush=True)
+        print(f"  [setup] Batch: {config.training.batch_size} x {config.data.max_seq_length} tokens", flush=True)
+        if self.accelerator.device.type == "mps":
+            print(f"  [setup] MPS memory management: empty_cache() after each batch", flush=True)
 
         final_ckpt_path: Path | None = None
 
         for epoch in range(config.training.num_epochs):
-            print(f"\n{'━'*60}")
-            print(f" Epoch {epoch+1}/{config.training.num_epochs} — generating samples via LLM...")
-            print(f"{'━'*60}")
+            epoch_start = time.time()
+            print(f"\n{'━'*60}", flush=True)
+            print(f" Epoch {epoch+1}/{config.training.num_epochs}", flush=True)
+            print(f"{'━'*60}", flush=True)
+
             # Recreate dataset each epoch for fresh seeds (Pitfall 5)
+            print(f"  [data] Creating LLMGeneratedDataset (epoch={epoch}, cache={self.cache_path})...", flush=True)
             dataset = LLMGeneratedDataset(
                 config,
                 self.tokenizer,
                 epoch=epoch,
                 cache_path=self.cache_path,
             )
+            print(f"  [data] Building DataLoader (batch_size={config.training.batch_size})...", flush=True)
             dataloader = DataLoader(dataset, batch_size=config.training.batch_size, collate_fn=_collate_to_tensors)
+            print(f"  [data] Accelerator.prepare(dataloader)...", flush=True)
+            t0 = time.time()
             dataloader = self.accelerator.prepare(dataloader)
+            print(f"  [data] DataLoader ready in {time.time()-t0:.1f}s", flush=True)
 
             epoch_loss = 0.0
             num_batches = 0
             total_batches = config.data.samples_per_batch // config.training.batch_size
 
-            print(f"\n  Training on generated data ({total_batches} batches, bs={config.training.batch_size})...")
+            print(f"\n  [train] Starting training loop ({total_batches} batches expected)...", flush=True)
+            print(f"  [train] Iterating DataLoader (LLM generation + collation)...", flush=True)
 
             for batch in dataloader:
+                batch_start = time.time()
                 batch_size_actual = batch["input_ids"].shape[0]
                 seq_len = batch["input_ids"].shape[1]
+                num_batches += 1
 
+                print(f"\n  [batch {num_batches}/{total_batches}] Received batch: {batch_size_actual}x{seq_len} tensors on {batch['input_ids'].device}", flush=True)
+
+                # Forward pass
+                print(f"  [batch {num_batches}] Forward pass (autocast)...", flush=True)
+                t0 = time.time()
                 with self.accelerator.autocast():
                     output = self.model(
                         input_ids=batch["input_ids"],
                         attention_mask=batch["attention_mask"],
                         labels=batch["labels"],
                     )
-                    # Non-CRF: TokenClassifierOutput with .loss
-                    # CRF: tuple (loss, emissions)
                     if isinstance(output, tuple):
                         loss = output[0]
                     else:
                         loss = output.loss
+                fwd_time = time.time() - t0
+                print(f"  [batch {num_batches}] Forward done in {fwd_time:.2f}s | loss={loss.item():.4f}", flush=True)
 
+                # Backward pass
+                print(f"  [batch {num_batches}] Backward pass...", flush=True)
+                t0 = time.time()
                 self.accelerator.backward(loss)
-                grad_norm = self.accelerator.clip_grad_norm_(
+                bwd_time = time.time() - t0
+                print(f"  [batch {num_batches}] Backward done in {bwd_time:.2f}s", flush=True)
+
+                # Gradient clipping
+                t0 = time.time()
+                grad_norm_raw = self.accelerator.clip_grad_norm_(
                     self.model.parameters(),
                     config.training.max_grad_norm,
                 )
+                # Ensure grad_norm is a plain float (may be Tensor or Mock in tests)
+                try:
+                    grad_norm = float(grad_norm_raw)
+                except (TypeError, ValueError):
+                    grad_norm = 0.0
+                clip_time = time.time() - t0
+
+                # Optimizer + scheduler step
                 optimizer.step()
                 scheduler.step()
                 optimizer.zero_grad()
 
                 epoch_loss += loss.item()
-                num_batches += 1
                 lr_backbone = optimizer.param_groups[0]["lr"]
                 lr_head = optimizer.param_groups[1]["lr"]
 
-                # Count predictions in this batch
-                if isinstance(output, tuple):
-                    preds = self.model.module.crf.decode(output[1]) if hasattr(self.model, 'module') else self.model.crf.decode(output[1])
-                else:
-                    preds = output.logits.argmax(dim=-1)
+                # Free MPS memory between batches
+                if self.accelerator.device.type == "mps":
+                    torch.mps.empty_cache()
 
-                # Progress bar
+                batch_time = time.time() - batch_start
+
+                # Summary line
                 filled = int(30 * num_batches // max(total_batches, 1))
                 bar = "█" * filled + "░" * (30 - filled)
                 print(
@@ -326,13 +375,17 @@ class Trainer:
                     f"loss: {loss.item():.4f} | "
                     f"grad: {grad_norm:.2f} | "
                     f"lr: {lr_backbone:.1e}/{lr_head:.1e} | "
-                    f"shape: {batch_size_actual}×{seq_len}"
+                    f"fwd: {fwd_time:.1f}s bwd: {bwd_time:.1f}s total: {batch_time:.1f}s",
+                    flush=True,
                 )
 
+            epoch_time = time.time() - epoch_start
             avg_loss = epoch_loss / max(num_batches, 1)
-            print(f"\n  ✓ Epoch {epoch+1}/{config.training.num_epochs} complete — avg loss: {avg_loss:.4f}")
+            print(f"\n  ✓ Epoch {epoch+1}/{config.training.num_epochs} complete — avg loss: {avg_loss:.4f} | {epoch_time:.1f}s total", flush=True)
 
             # Save checkpoint after each epoch
+            print(f"  [ckpt] Saving checkpoint...", flush=True)
+            t0 = time.time()
             final_ckpt_path = save_checkpoint(
                 self.model,
                 optimizer,
@@ -342,11 +395,12 @@ class Trainer:
                 accelerator=self.accelerator,
                 run_id=self.run_id,
             )
-            print(f"  💾 Checkpoint saved: {final_ckpt_path}")
+            print(f"  [ckpt] Saved in {time.time()-t0:.1f}s: {final_ckpt_path}", flush=True)
 
-        print(f"\n{'━'*60}")
-        print(f" Training complete! Final checkpoint: {final_ckpt_path}")
-        print(f"{'━'*60}")
+        total_time = time.time() - train_start
+        print(f"\n{'━'*60}", flush=True)
+        print(f" Training complete in {total_time:.1f}s | Final checkpoint: {final_ckpt_path}", flush=True)
+        print(f"{'━'*60}", flush=True)
         return final_ckpt_path
 
 

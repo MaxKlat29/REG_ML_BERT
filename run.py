@@ -45,6 +45,11 @@ def main(argv: list[str] | None = None) -> None:
         help="Train RegulatoryNERModel and save checkpoints",
     )
     train_parser.add_argument(
+        "--config", "-c",
+        default="config/default.yaml",
+        help="Path to YAML config file (default: config/default.yaml)",
+    )
+    train_parser.add_argument(
         "overrides",
         nargs="*",
         help="OmegaConf-style config overrides (e.g. training.num_epochs=5)",
@@ -73,6 +78,8 @@ def main(argv: list[str] | None = None) -> None:
 
 def _run_train(args) -> None:
     """Execute the training workflow."""
+    import time
+
     from accelerate import Accelerator
     from transformers import BertTokenizerFast
 
@@ -85,39 +92,52 @@ def _run_train(args) -> None:
     )
     from src.model.ner_model import RegulatoryNERModel
 
+    total_start = time.time()
+
     # Load config with optional CLI overrides
+    config_path = args.config if hasattr(args, "config") else "config/default.yaml"
     overrides = args.overrides if hasattr(args, "overrides") else []
-    print(f"[run.py] Loading config with overrides: {overrides}")
-    config = load_config(overrides=overrides)
+    print(f"[init] Config: {config_path} | overrides: {overrides}", flush=True)
+    config = load_config(config_path=config_path, overrides=overrides)
+    print(f"[init] Config loaded: {config.training.num_epochs} epochs, {config.data.samples_per_batch} samples/epoch", flush=True)
 
     # Seed and device setup
     set_seed(config.project.seed)
     device = get_device()
-    print(f"[run.py] Seed: {config.project.seed} | Device: {device}")
+    print(f"[init] Seed: {config.project.seed} | Device: {device}", flush=True)
 
     # Mixed precision
     mixed_precision = resolve_mixed_precision(config, device)
-    print(f"[run.py] Mixed precision: {mixed_precision}")
+    print(f"[init] Mixed precision: {mixed_precision}", flush=True)
 
     # Accelerator
+    print(f"[init] Creating Accelerator...", flush=True)
+    t0 = time.time()
     accelerator = Accelerator(mixed_precision=mixed_precision)
+    print(f"[init] Accelerator ready in {time.time()-t0:.1f}s | device={accelerator.device}", flush=True)
 
     # Tokenizer — BertTokenizerFast (not AutoTokenizer; see decision in STATE.md)
-    print(f"[run.py] Loading tokenizer: {config.model.name}")
+    print(f"[init] Loading tokenizer: {config.model.name}...", flush=True)
+    t0 = time.time()
     tokenizer = BertTokenizerFast.from_pretrained(config.model.name)
-    print(f"[run.py] Tokenizer loaded. Vocab size: {tokenizer.vocab_size}")
+    print(f"[init] Tokenizer loaded in {time.time()-t0:.1f}s | vocab={tokenizer.vocab_size}", flush=True)
 
     if config.ensemble.enabled:
-        print(f"[run.py] Ensemble mode: {config.ensemble.n_estimators} models")
+        print(f"[init] Ensemble mode: {config.ensemble.n_estimators} models", flush=True)
         checkpoint_paths = train_ensemble(config, tokenizer, accelerator)
         for path in checkpoint_paths:
-            print(f"Ensemble checkpoint: {path}")
+            print(f"Ensemble checkpoint: {path}", flush=True)
     else:
-        print(f"[run.py] Single model training — CRF: {config.model.use_crf}, LoRA: {config.model.use_lora}")
+        print(f"[init] Single model training — CRF: {config.model.use_crf}, LoRA: {config.model.use_lora}", flush=True)
+        print(f"[init] Loading model: {config.model.name}...", flush=True)
+        t0 = time.time()
         model = RegulatoryNERModel(config)
+        print(f"[init] Model loaded in {time.time()-t0:.1f}s", flush=True)
+
+        print(f"[init] Setup complete in {time.time()-total_start:.1f}s — starting training...\n", flush=True)
         trainer = Trainer(config, model, tokenizer, accelerator)
         checkpoint_path = trainer.train()
-        print(f"Checkpoint: {checkpoint_path}")
+        print(f"\nCheckpoint: {checkpoint_path}", flush=True)
 
 
 if __name__ == "__main__":
