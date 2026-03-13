@@ -277,8 +277,14 @@ class Trainer:
 
             epoch_loss = 0.0
             num_batches = 0
+            total_batches = config.data.samples_per_batch // config.training.batch_size
+
+            print(f"\n  Training on generated data ({total_batches} batches, bs={config.training.batch_size})...")
 
             for batch in dataloader:
+                batch_size_actual = batch["input_ids"].shape[0]
+                seq_len = batch["input_ids"].shape[1]
+
                 with self.accelerator.autocast():
                     output = self.model(
                         input_ids=batch["input_ids"],
@@ -293,7 +299,7 @@ class Trainer:
                         loss = output.loss
 
                 self.accelerator.backward(loss)
-                self.accelerator.clip_grad_norm_(
+                grad_norm = self.accelerator.clip_grad_norm_(
                     self.model.parameters(),
                     config.training.max_grad_norm,
                 )
@@ -303,10 +309,24 @@ class Trainer:
 
                 epoch_loss += loss.item()
                 num_batches += 1
-                lr_now = scheduler.get_last_lr()[0]
+                lr_backbone = optimizer.param_groups[0]["lr"]
+                lr_head = optimizer.param_groups[1]["lr"]
+
+                # Count predictions in this batch
+                if isinstance(output, tuple):
+                    preds = self.model.module.crf.decode(output[1]) if hasattr(self.model, 'module') else self.model.crf.decode(output[1])
+                else:
+                    preds = output.logits.argmax(dim=-1)
+
+                # Progress bar
+                filled = int(30 * num_batches // max(total_batches, 1))
+                bar = "█" * filled + "░" * (30 - filled)
                 print(
-                    f"  ▸ Batch {num_batches} — loss: {loss.item():.4f} | "
-                    f"lr: {lr_now:.2e}"
+                    f"  [{bar}] Batch {num_batches}/{total_batches} | "
+                    f"loss: {loss.item():.4f} | "
+                    f"grad: {grad_norm:.2f} | "
+                    f"lr: {lr_backbone:.1e}/{lr_head:.1e} | "
+                    f"shape: {batch_size_actual}×{seq_len}"
                 )
 
             avg_loss = epoch_loss / max(num_batches, 1)
