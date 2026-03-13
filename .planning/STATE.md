@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed 02-01-PLAN.md — LLM client with retry, ref-tag parser, domain rotation
-last_updated: "2026-03-13T17:18:00Z"
-last_activity: 2026-03-13 — Completed 02-01 (async LLM client, parse_ref_tags, build_generation_prompt)
+stopped_at: Completed 02-02-PLAN.md — BIO converter, JSONL cache, IterableDataset
+last_updated: "2026-03-13T17:30:00Z"
+last_activity: 2026-03-13 — Completed 02-02 (bio_converter, cache, LLMGeneratedDataset, 17 tests)
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
-  percent: 33
+  total_plans: 4
+  completed_plans: 4
+  percent: 44
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 ## Current Position
 
 Phase: 2 of 4 (Data Pipeline) -- In Progress
-Plan: 1 of 3 in current phase (02-01 complete)
+Plan: 2 of 3 in current phase (02-01, 02-02 complete)
 Status: In Progress
-Last activity: 2026-03-13 — Completed 02-01 (async LLM client, parse_ref_tags, domain rotation)
+Last activity: 2026-03-13 — Completed 02-02 (BIO converter, JSONL cache, IterableDataset, 17 tests)
 
-Progress: [███░░░░░░░] 33%
+Progress: [████░░░░░░] 44%
 
 ## Performance Metrics
 
@@ -44,7 +44,7 @@ Progress: [███░░░░░░░] 33%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. Foundation | 2/2 | 6 min | 3 min |
-| 2. Data Pipeline | 1/3 | 3 min | 3 min |
+| 2. Data Pipeline | 2/3 | 15 min | 7.5 min |
 | 3. Model + Training | 0/2 | - | - |
 | 4. Evaluation + Inference | 0/2 | - | - |
 
@@ -73,6 +73,9 @@ Recent decisions affecting current work:
 - 02-01: raise_for_status() guarded by status >= 400 — httpx.Response without request raises RuntimeError even on 200
 - 02-01: Tenacity retry wait patched via call_openrouter.retry.wait = wait_none() in tests
 - 02-01: DOMAIN_LIST has 13 entries; domain rotation via seed % len(DOMAIN_LIST)
+- 02-02: BertTokenizerFast instead of AutoTokenizer — transformers 5.x AutoTokenizer fails on gbert-large without tokenizer.json
+- 02-02: Special token detection via (start==0 AND end==0) on offset_mapping; first real token can have start=0 but end>0
+- 02-02: Worker seed formula: epoch*10000 + batch_idx*100 + worker_id for distinct samples per worker
 
 ### Pending Todos
 
@@ -80,10 +83,10 @@ None yet.
 
 ### Blockers/Concerns
 
-- Research flag: Phase 2 needs care around BIO alignment edge cases for German compound words; OpenRouter async rate limits; IterableDataset worker seeding to prevent duplicate samples
+- Research flag: Phase 2 BIO alignment edge cases addressed and tested. Remaining: OpenRouter async rate limits (handled by retry in 02-01), worker seeding (addressed in 02-02).
 
 ## Session Continuity
 
 Last session: 2026-03-13
-Stopped at: Completed 02-01-PLAN.md — LLM client ready, next is 02-02 (BIO converter + JSONL cache)
+Stopped at: Completed 02-02-PLAN.md — BIO converter + JSONL cache + IterableDataset complete, next is 02-03
 Resume file: None
