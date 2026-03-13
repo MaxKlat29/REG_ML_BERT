@@ -150,12 +150,25 @@ class RegulatoryNERModel(nn.Module):
         attention_mask: torch.Tensor,
         labels: torch.Tensor | None = None,
     ):
-        """
+        """Run a forward pass through the model.
+
         Non-CRF path: delegates to BertForTokenClassification and returns
         a TokenClassifierOutput (with .loss and .logits).
 
         CRF path with labels: returns (loss: scalar, emissions: B x S x 3).
         CRF path without labels: returns list[list[int]] from Viterbi decode.
+
+        Args:
+            input_ids: Token ID tensor of shape (batch, seq_len).
+            attention_mask: Attention mask tensor of shape (batch, seq_len).
+            labels: Optional token label tensor of shape (batch, seq_len).
+                Use LABEL_IGNORE (-100) for special tokens and padding.
+
+        Returns:
+            Non-CRF with labels: TokenClassifierOutput with .loss and .logits.
+            Non-CRF without labels: TokenClassifierOutput with .logits only.
+            CRF with labels: Tuple of (loss: Tensor, emissions: Tensor).
+            CRF without labels: list[list[int]] Viterbi decoded label sequences.
         """
         if self._use_crf:
             return self._forward_crf(input_ids, attention_mask, labels)
@@ -192,17 +205,29 @@ class RegulatoryNERModel(nn.Module):
 
     @property
     def use_crf(self) -> bool:
-        """Whether the CRF layer is active."""
+        """Whether the CRF layer is active.
+
+        Returns:
+            True if a CRF layer is present, False for plain token classification.
+        """
         return self._use_crf
 
     def get_bert_parameters(self):
-        """Return BERT encoder parameters (for differential LR in optimizer)."""
+        """Return BERT encoder parameters (for differential LR in optimizer).
+
+        Returns:
+            List of parameter tensors from the BERT backbone.
+        """
         if self._use_crf:
             return list(self.bert.parameters())
         return list(self.bert_tc.bert.parameters())
 
     def get_head_parameters(self):
-        """Return classification head parameters (for differential LR in optimizer)."""
+        """Return classification head parameters (for differential LR in optimizer).
+
+        Returns:
+            List of parameter tensors from the classification head (and CRF if active).
+        """
         if self._use_crf:
             return list(self.classifier.parameters()) + list(self.crf.parameters())
         return list(self.bert_tc.classifier.parameters())
