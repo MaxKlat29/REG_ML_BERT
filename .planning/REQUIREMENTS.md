@@ -38,12 +38,12 @@
 
 ### Evaluation
 
-- [ ] **EVAL-01**: Evaluation reports entity-level Precision, Recall, and F1 (not token-level)
+- [x] **EVAL-01**: Evaluation reports entity-level Precision, Recall, and F1 (not token-level)
 - [x] **EVAL-02**: Regex baseline extracts references using pattern matching (§, Artikel, Abs., Anhang, Verordnung, etc.)
 - [x] **EVAL-03**: Regex baseline is evaluated with same metrics as ML model for direct comparison
-- [ ] **EVAL-04**: Evaluation reports per-reference-type metrics (§ references, Artikel, Tz., etc.)
-- [ ] **EVAL-05**: Evaluation dumps false positives and false negatives to file for error analysis
-- [ ] **EVAL-06**: Evaluation supports both exact match and partial match (IoU > 0.5) scoring
+- [x] **EVAL-04**: Evaluation reports per-reference-type metrics (§ references, Artikel, Tz., etc.)
+- [x] **EVAL-05**: Evaluation dumps false positives and false negatives to file for error analysis
+- [x] **EVAL-06**: Evaluation supports both exact match and partial match (IoU > 0.5) scoring
 
 ### Ensemble
 
@@ -140,10 +140,10 @@
 | ENSM-02 | Phase 3 | Complete |
 | ENSM-03 | Phase 3 | Complete |
 | ENSM-04 | Phase 3 | Complete |
-| EVAL-01 | Phase 4 | Pending |
-| EVAL-04 | Phase 4 | Pending |
-| EVAL-05 | Phase 4 | Pending |
-| EVAL-06 | Phase 4 | Pending |
+| EVAL-01 | Phase 4 | Complete |
+| EVAL-04 | Phase 4 | Complete |
+| EVAL-05 | Phase 4 | Complete |
+| EVAL-06 | Phase 4 | Complete |
 | INFR-01 | Phase 4 | Pending |
 | INFR-02 | Phase 4 | Pending |
 | INFR-03 | Phase 4 | Pending |
