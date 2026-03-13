@@ -4,8 +4,10 @@ All HTTP calls are mocked — no live API calls are made.
 """
 import pytest
 import httpx
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
+from tenacity import wait_none
 
+import src.data.llm_client as llm_mod
 from src.data.llm_client import (
     call_openrouter,
     parse_ref_tags,
@@ -28,11 +30,15 @@ def _make_response(status_code: int, content: str = "generated text") -> httpx.R
     return httpx.Response(status_code)
 
 
+def _no_wait(retry_state):
+    """Wait function that returns 0 — used to speed up retry tests."""
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # call_openrouter tests
 # ---------------------------------------------------------------------------
 
-@pytest.mark.asyncio
 async def test_call_openrouter_success():
     """Mocked httpx returns 200; call_openrouter returns content string."""
     mock_response = _make_response(200, "Gemäß § 25a KWG gilt folgendes.")
@@ -50,7 +56,6 @@ async def test_call_openrouter_success():
     mock_client.post.assert_called_once()
 
 
-@pytest.mark.asyncio
 async def test_call_openrouter_retry_on_429():
     """Mocked httpx returns 429 twice then 200; succeeds after retries."""
     responses = [
@@ -61,12 +66,9 @@ async def test_call_openrouter_retry_on_429():
     mock_client = AsyncMock()
     mock_client.post = AsyncMock(side_effect=responses)
 
-    # Patch wait to instant to avoid slow tests
-    with patch("src.data.llm_client.call_openrouter.retry.wait", new=None):
-        pass  # The patching happens at call site
-
-    # Use patched version with no wait
-    with patch("tenacity.wait.wait_exponential_jitter.__call__", return_value=0):
+    # Patch the retry decorator's wait to be instant
+    call_openrouter.retry.wait = wait_none()
+    try:
         result = await call_openrouter(
             client=mock_client,
             model="google/gemini-flash-1.5",
@@ -74,11 +76,15 @@ async def test_call_openrouter_retry_on_429():
             seed=1,
             api_key="test-key",
         )
+    finally:
+        # Restore original wait to avoid test pollution
+        from tenacity import wait_exponential_jitter
+        call_openrouter.retry.wait = wait_exponential_jitter(initial=1, max=60, jitter=5)
+
     assert result == "success after retries"
     assert mock_client.post.call_count == 3
 
 
-@pytest.mark.asyncio
 async def test_call_openrouter_retry_on_502():
     """Mocked httpx returns 502 then 200; succeeds after retry."""
     responses = [
@@ -88,7 +94,8 @@ async def test_call_openrouter_retry_on_502():
     mock_client = AsyncMock()
     mock_client.post = AsyncMock(side_effect=responses)
 
-    with patch("tenacity.wait.wait_exponential_jitter.__call__", return_value=0):
+    call_openrouter.retry.wait = wait_none()
+    try:
         result = await call_openrouter(
             client=mock_client,
             model="google/gemini-flash-1.5",
@@ -96,17 +103,21 @@ async def test_call_openrouter_retry_on_502():
             seed=2,
             api_key="test-key",
         )
+    finally:
+        from tenacity import wait_exponential_jitter
+        call_openrouter.retry.wait = wait_exponential_jitter(initial=1, max=60, jitter=5)
+
     assert result == "recovered"
     assert mock_client.post.call_count == 2
 
 
-@pytest.mark.asyncio
 async def test_call_openrouter_gives_up_after_max_retries():
     """Mocked httpx always returns 429; raises RetryableAPIError after max attempts."""
     mock_client = AsyncMock()
     mock_client.post = AsyncMock(return_value=_make_response(429))
 
-    with patch("tenacity.wait.wait_exponential_jitter.__call__", return_value=0):
+    call_openrouter.retry.wait = wait_none()
+    try:
         with pytest.raises(Exception):
             await call_openrouter(
                 client=mock_client,
@@ -115,6 +126,10 @@ async def test_call_openrouter_gives_up_after_max_retries():
                 seed=3,
                 api_key="test-key",
             )
+    finally:
+        from tenacity import wait_exponential_jitter
+        call_openrouter.retry.wait = wait_exponential_jitter(initial=1, max=60, jitter=5)
+
     # At least 5 attempts should have been made (max_retries=5)
     assert mock_client.post.call_count >= 5
 
