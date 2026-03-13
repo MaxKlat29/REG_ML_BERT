@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: milestone
+milestone_name: PoC
 status: completed
-stopped_at: Completed 04-02-PLAN.md — Predictor class, evaluate/predict CLI subcommands, Google-style docstrings across all src/ modules; 146 tests total
-last_updated: "2026-03-13T20:37:24.093Z"
-last_activity: 2026-03-13 — Completed 02-03 (gold test set generator, 5 TDD tests, 55 total passing)
+stopped_at: "v1.0 PoC milestone complete — all 4 phases, 42 requirements, 146 tests"
+last_updated: "2026-03-13"
+last_activity: "2026-03-13 — v1.0 milestone archived"
 progress:
   total_phases: 4
   completed_phases: 4
   total_plans: 9
   completed_plans: 9
-  percent: 56
+  percent: 100
 ---
 
 # Project State
@@ -21,91 +21,27 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Reliably find every legal reference in German regulatory text (recall over precision)
-**Current focus:** Phase 2 — Data Pipeline
+**Current focus:** Planning next steps — GPU training + real evaluation
 
 ## Current Position
 
-Phase: 2 of 4 (Data Pipeline) -- Complete
-Plan: 3 of 3 in current phase (02-01, 02-02, 02-03 complete)
-Status: Phase Complete — ready for Phase 3 (Model + Training)
-Last activity: 2026-03-13 — Completed 02-03 (gold test set generator, 5 TDD tests, 55 total passing)
+Phase: 4 of 4 (Evaluation + Inference) -- Complete
+Plan: 9 of 9 total plans complete
+Status: v1.0 PoC milestone SHIPPED
+Last activity: 2026-03-13 — Milestone archived
 
-Progress: [█████░░░░░] 56%
+Progress: [██████████] 100%
 
-## Performance Metrics
+## Next Steps
 
-**Velocity:**
-- Total plans completed: 2
-- Average duration: 3 min
-- Total execution time: 0.10 hours
-
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 1. Foundation | 2/2 | 6 min | 3 min |
-| 2. Data Pipeline | 3/3 | 18 min | 6 min |
-| 3. Model + Training | 0/2 | - | - |
-| 4. Evaluation + Inference | 0/2 | - | - |
-
-**Recent Trend:**
-- Last 5 plans: 01-01 (2 min), 01-02 (4 min), 02-01 (3 min)
-- Trend: steady
-
-*Updated after each plan completion*
-| Phase 03-model-training P01 | 4 | 1 tasks | 4 files |
-| Phase 03-model-training P02 | 6 min | 2 tasks | 4 files |
-| Phase 04-evaluation-inference P01 | 8 min | 2 tasks | 4 files |
-| Phase 04-evaluation-inference P02 | 4 min | 2 tasks | 5 files |
-
-## Accumulated Context
-
-### Decisions
-
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
-
-- Roadmap: CRF and ensemble are Phase 3 config-toggle features, not a separate phase (coarse granularity)
-- Roadmap: Gold test set builder placed in Phase 2 — must be frozen before any model training begins
-- Roadmap: DOCS-03 (docstrings) deferred to Phase 4 as final polish alongside CLI integration
-- 01-01: Used OmegaConf.from_dotlist() for explicit overrides, from_dotlist with stripped "--" for CLI
-- 01-01: Config immutable after load_config() returns
-- 01-02: Used regex PyPI package (not stdlib re) for German legal reference patterns
-- 01-02: Law abbreviation matching requires 2+ uppercase letters to reduce false positives
-- 01-02: BIO labels use B-REF/I-REF/O format per seqeval IOB2 requirement
-- 02-01: Used stdlib re (not regex PyPI) for ref-tag parsing — simple non-nested case
-- 02-01: raise_for_status() guarded by status >= 400 — httpx.Response without request raises RuntimeError even on 200
-- 02-01: Tenacity retry wait patched via call_openrouter.retry.wait = wait_none() in tests
-- 02-01: DOMAIN_LIST has 13 entries; domain rotation via seed % len(DOMAIN_LIST)
-- 02-02: BertTokenizerFast instead of AutoTokenizer — transformers 5.x AutoTokenizer fails on gbert-large without tokenizer.json
-- 02-02: Special token detection via (start==0 AND end==0) on offset_mapping; first real token can have start=0 but end>0
-- 02-02: Worker seed formula: epoch*10000 + batch_idx*100 + worker_id for distinct samples per worker
-- 02-03: Mock call_openrouter at call site (scripts.generate_gold_test.call_openrouter) not source module after 'from ... import'
-- 02-03: Gold set pos/neg split is index-based (sample_index >= int(N*ratio)) not RNG-based — exact reproducibility without seeding random
-- 02-03: asyncio.coroutine removed in Python 3.14 — use async def side_effect functions with AsyncMock
-- [Phase 03-model-training]: CRF path uses BertModel not BertForTokenClassification to access raw last_hidden_state for manual linear head + CRF
-- [Phase 03-model-training]: pytorch-crf mask[:,0] must all be True — labels[:,0] must not be -100 in CRF forward
-- [Phase 03-model-training]: LoRA target_modules fallback: query/value -> q_proj/v_proj -> warn+skip for graceful degradation
-- [Phase 03-model-training]: resolve_mixed_precision: CUDA returns config value; MPS requires torch>=2.6 for bf16; CPU always no
-- [Phase 03-model-training]: Build optimizer before accelerator.prepare — passing all three together avoids prepare overwriting initial LRs
-- [Phase 03-model-training]: CHECKPOINT_BASE as patchable module constant — tests redirect checkpoint writes via patch() without touching config
-- [Phase 03-model-training]: Ensemble model 0 writes live-generated data to ensemble_base.jsonl; models 1..N read from it — minimises LLM API calls for N-1 estimators
-- [Phase 04-evaluation-inference]: classify_span_type uses regex.search not word boundary — dots are non-word chars so \b fails after Art.
-- [Phase 04-evaluation-inference]: TYPED_PATTERNS: TEILZIFFER before PARAGRAPH to avoid Tz. numeric suffix being consumed by § pattern
-- [Phase 04-evaluation-inference]: evaluate_model dispatches on model._use_crf: non-CRF uses output.logits.argmax; CRF uses output[0] Viterbi list
-- [Phase 04-evaluation-inference]: predict() computes confidence as mean softmax prob at predicted label for tokens in span; CRF always returns confidence=1.0 (Viterbi has no marginals)
-- [Phase 04-evaluation-inference]: test_google_style_docstrings uses ast.parse not import/inspect — avoids model loading side effects during test collection
-
-### Pending Todos
-
-None yet.
-
-### Blockers/Concerns
-
-- Research flag: Phase 2 BIO alignment edge cases addressed and tested. Remaining: OpenRouter async rate limits (handled by retry in 02-01), worker seeding (addressed in 02-02).
+1. Configure SSH to GPU machine (RTX)
+2. Run real training: `python run.py train --config config/gpu.yaml`
+3. Run evaluation: `python run.py evaluate` for ML vs regex verdict
+4. Review gold test set manually
+5. Optional: `/gsd:new-milestone` for v1.1
 
 ## Session Continuity
 
-Last session: 2026-03-13T20:32:59.282Z
-Stopped at: Completed 04-02-PLAN.md — Predictor class, evaluate/predict CLI subcommands, Google-style docstrings across all src/ modules; 146 tests total
+Last session: 2026-03-13
+Stopped at: v1.0 milestone complete
 Resume file: None

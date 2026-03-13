@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A Python ML pipeline (PoC) that automatically extracts legal references from German regulatory text blocks using token classification with BIO labels. From text like "Gemäß § 25a Abs. 1 KWG gilt folgendes", the model identifies and extracts "§ 25a Abs. 1 KWG" as a reference span. Built for product evaluation — proving the approach works before productionizing.
+A Python ML pipeline (PoC) that automatically extracts legal references from German regulatory text blocks using token classification with BIO labels. From text like "Gemäß § 25a Abs. 1 KWG gilt folgendes", the model identifies and extracts "§ 25a Abs. 1 KWG" as a reference span. Built as a proof-of-concept — v1.0 shipped with full pipeline from data generation to CLI inference.
 
 ## Core Value
 
@@ -12,23 +12,25 @@ Reliably find every legal reference in German regulatory text (recall over preci
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Token classification model (gbert-large + Linear Head) with BIO labels — v1.0
+- ✓ Optional CRF layer for label transition constraints — v1.0
+- ✓ Online training data generation via LLM (OpenRouter API) — v1.0
+- ✓ BIO conversion from character-level spans to token-level labels — v1.0
+- ✓ PyTorch IterableDataset with on-the-fly LLM data generation — v1.0
+- ✓ Training loop with differential learning rates, warmup, mixed precision — v1.0
+- ✓ Optional ensemble (bagging with cached data) — v1.0
+- ✓ Entity-level evaluation (Precision, Recall, F1) — v1.0
+- ✓ Regex baseline as benchmark comparison — v1.0
+- ✓ CLI inference: text in → reference spans out — v1.0
+- ✓ Gold test set generation via LLM (manually reviewable) — v1.0
+- ✓ YAML-driven config — no hardcoded hyperparameters — v1.0
+- ✓ Cross-platform: Apple Silicon (MPS) + NVIDIA (CUDA) + CPU fallback — v1.0
 
 ### Active
 
-- [ ] Token classification model (gbert-large + Linear Head) with BIO labels (O, B-REF, I-REF)
-- [ ] Optional CRF layer for label transition constraints
-- [ ] Online training data generation via LLM (OpenRouter API)
-- [ ] BIO conversion from character-level spans to token-level labels
-- [ ] PyTorch IterableDataset with on-the-fly LLM data generation
-- [ ] Training loop with differential learning rates, warmup, mixed precision
-- [ ] Optional ensemble (bagging with cached data)
-- [ ] Entity-level evaluation (Precision, Recall, F1)
-- [ ] Regex baseline as benchmark comparison
-- [ ] CLI inference: text in → reference spans out
-- [ ] Gold test set generation via LLM (manually reviewable)
-- [ ] YAML-driven config — no hardcoded hyperparameters
-- [ ] Cross-platform: Apple Silicon (MPS) + NVIDIA (CUDA) + CPU fallback
+- [ ] GPU training via SSH — real training run on CUDA hardware
+- [ ] End-to-end evaluation: ML model vs regex on gold test set (the actual PoC verdict)
+- [ ] Gold test set manual review (needs_review flags)
 
 ### Out of Scope
 
@@ -41,11 +43,24 @@ Reliably find every legal reference in German regulatory text (recall over preci
 
 ## Context
 
-- **Domain**: German regulatory text across all legal areas (BGB, HGB, KWG, MaRisk, DORA, DSGVO, CRR, MiFID II, Solvency II, VAG, WpHG, KAGB, Basel III, StGB, Steuerrecht, etc.)
-- **Reference types**: § references, Artikel, Absatz, Anhang, Verordnungen, Richtlinien, Textziffer (Tz.), lit., Nr., Satz — anything pointing to another legal source
-- **Data strategy**: No static training dataset. Training data generated on-the-fly by LLM via OpenRouter. ~60% samples with references, ~40% without. Gold test set LLM-generated + manually validated.
-- **Product context**: This PoC evaluates whether the approach is viable for a broader product. Must demonstrate the ML model beats a regex baseline, especially on recall.
-- **Hardware**: Primary dev on Apple M1 (MPS backend), colleague runs on RTX GPU (CUDA). Both must work seamlessly with automatic device detection.
+Shipped v1.0 PoC with ~6,500 LOC Python, 146 tests, 42 requirements satisfied.
+Tech stack: Python 3.10+, PyTorch, HuggingFace Transformers, OmegaConf, httpx, seqeval, Accelerate, pytorch-crf, PEFT.
+Training verified on MPS (loss decreasing) but MPS too slow for real training — GPU needed.
+Next: SSH to GPU machine, real training, then `python run.py evaluate` for the PoC verdict.
+
+## Key Decisions
+
+| Decision | Rationale | Outcome |
+|----------|-----------|---------|
+| BIO tagging over span extraction | Simpler, well-understood approach for NER-style tasks | ✓ Good — clean implementation |
+| Online LLM data generation | No annotated German regulatory corpus available | ✓ Good — diverse samples generated |
+| gbert-large as base | Best available pretrained German BERT; 1024d | ✓ Good — but heavy on MPS |
+| Recall over precision | Missing a legal reference has higher cost | — Pending real eval |
+| CRF optional (config toggle) | Enforces BIO transitions, adds complexity | — Pending real eval |
+| Ensemble optional (config toggle) | Bagging can improve robustness | — Pending real eval |
+| BertTokenizerFast (not Auto) | AutoTokenizer lacks offset_mapping on gbert-large | ✓ Good — key discovery |
+| Dual-path model architecture | BertForTokenClassification vs BertModel+CRF | ✓ Good — clean separation |
+| Accelerate for device handling | Single code path CUDA/MPS/CPU | ✓ Good — simplified trainer |
 
 ## Constraints
 
@@ -56,16 +71,5 @@ Reliably find every legal reference in German regulatory text (recall over preci
 - **Immediacy**: Must be runnable end-to-end immediately after setup (pip install + env var)
 - **Reproducibility**: Fixed seeds everywhere (PyTorch, NumPy, LLM generation per batch)
 
-## Key Decisions
-
-| Decision | Rationale | Outcome |
-|----------|-----------|---------|
-| BIO tagging over span extraction | Simpler, well-understood approach for NER-style tasks; works well with BERT | — Pending |
-| Online LLM data generation | No annotated German regulatory corpus available; LLM can generate diverse examples on-the-fly | — Pending |
-| gbert-large as base | Best available pretrained German BERT; 1024d gives strong representations | — Pending |
-| Recall over precision | Missing a legal reference has higher cost than a false positive in regulatory context | — Pending |
-| CRF optional | Adds complexity but enforces valid BIO transitions; config toggle lets us A/B test | — Pending |
-| Ensemble optional | Bagging can improve robustness but adds training time; config toggle for PoC flexibility | — Pending |
-
 ---
-*Last updated: 2026-03-13 after initialization*
+*Last updated: 2026-03-13 after v1.0 milestone*
