@@ -44,12 +44,12 @@ Plans:
   3. User runs the gold set generator script once; `gold_test_set.json` is written to disk with all entries marked `needs_review: true` and containing both positive and negative examples
   4. LLM generation retries on rate-limit/timeout with exponential backoff; a simulated failure does not crash the training loop
   5. Cached data from disk is usable as a reproducible training source (enabling ensemble resampling)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: LLM data generator (OpenRouter/Gemini Flash, async httpx, retry logic, domain rotation, reproducible seeding)
-- [ ] 02-02: BIO converter (character-span → token-level BIO via offset_mapping, special-token masking, data validation), IterableDataset, disk cache
-- [ ] 02-03: Gold test set builder (separate LLM prompt, fixed seed, JSON persistence, needs_review flag, positive/negative mix)
+- [ ] 02-01-PLAN.md — Async LLM client (OpenRouter/Gemini Flash, httpx, tenacity retry, ref-tag parser, domain rotation)
+- [ ] 02-02-PLAN.md — BIO converter (char-span to token-level BIO via offset_mapping), JSONL disk cache, IterableDataset with worker sharding
+- [ ] 02-03-PLAN.md — Gold test set builder (LLM-generated, fixed seed, JSON persistence, needs_review flag, positive/negative mix)
 
 ### Phase 3: Model + Training
 **Goal**: A trained gbert-large token classifier checkpoint exists on disk, produced by a training loop that uses differential learning rates, warmup, and mixed precision, with CRF and ensemble available as config toggles
