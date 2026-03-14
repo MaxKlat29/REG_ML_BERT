@@ -198,10 +198,9 @@ def build_generation_prompt(domain: str, include_references: bool = True) -> str
     """
     if include_references:
         return (
-            f"Schreiben Sie einen ausführlichen deutschen regulatorischen Fachtext "
-            f"(mindestens 3 Absätze, ca. 200-400 Wörter) zum Thema {domain}. "
-            f"Der Text soll mehrere Paragraphen, Artikel oder Anhänge des {domain} "
-            f"in ihrem Zusammenspiel erklären — praxisnah und detailliert. "
+            f"Schreiben Sie einen deutschen regulatorischen Fachtext "
+            f"(1-2 Absätze, ca. 80-150 Wörter) zum Thema {domain}. "
+            f"Der Text soll Paragraphen oder Artikel des {domain} praxisnah erklären. "
             f"Markieren Sie JEDEN Rechtsverweis (z.B. §, Art., Anhang, Abs., Nr.) "
             f"mit XML-Tags im Format <ref>§ 25a Abs. 1 {domain}</ref>. "
             f"Beispiel: 'Gemäß <ref>§ 25a Abs. 1 {domain}</ref> sind Kreditinstitute "
@@ -211,8 +210,8 @@ def build_generation_prompt(domain: str, include_references: bool = True) -> str
         )
     else:
         return (
-            f"Schreiben Sie einen ausführlichen deutschen regulatorischen Fachtext "
-            f"(mindestens 3 Absätze, ca. 200-400 Wörter) zum Thema {domain}. "
+            f"Schreiben Sie einen deutschen regulatorischen Fachtext "
+            f"(1-2 Absätze, ca. 80-150 Wörter) zum Thema {domain}. "
             f"Verwenden Sie KEINE Rechtsverweise (keine §, Art., Anhang-Verweise). "
             f"Der Text soll sachlich und fachlich korrekt sein, "
             f"aber ausschließlich erklärenden Charakter ohne Normzitate haben."
