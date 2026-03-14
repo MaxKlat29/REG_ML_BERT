@@ -58,6 +58,33 @@ def main(argv: list[str] | None = None) -> None:
         help="OmegaConf-style config overrides (e.g. training.num_epochs=5)",
     )
 
+    # --- generate subcommand ---
+    gen_parser = subparsers.add_parser(
+        "generate",
+        help="Generate training dataset via parallel LLM calls and export to JSON",
+    )
+    gen_parser.add_argument(
+        "--config", "-c",
+        default="config/default.yaml",
+        help="Path to YAML config file (default: config/default.yaml)",
+    )
+    gen_parser.add_argument(
+        "--output", "-o",
+        default=None,
+        help="Output JSON path (default: from config data.dataset_path)",
+    )
+    gen_parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=50,
+        help="Max parallel LLM requests (default: 50)",
+    )
+    gen_parser.add_argument(
+        "overrides",
+        nargs="*",
+        help="OmegaConf-style config overrides (e.g. data.total_samples=5120)",
+    )
+
     # --- evaluate subcommand ---
     evaluate_parser = subparsers.add_parser(
         "evaluate",
@@ -124,10 +151,42 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.command == "train":
         _run_train(args)
+    elif args.command == "generate":
+        _run_generate(args)
     elif args.command == "evaluate":
         _run_evaluate(args)
     elif args.command == "predict":
         _run_predict(args)
+
+
+def _run_generate(args) -> None:
+    """Execute the dataset generation workflow.
+
+    Args:
+        args: Parsed argparse namespace with config, output, concurrency, overrides.
+    """
+    from pathlib import Path
+
+    from transformers import BertTokenizerFast
+
+    from src.utils.config import load_config
+    from src.data.generate_dataset import run_generate
+
+    config_path = getattr(args, "config", "config/default.yaml")
+    overrides = getattr(args, "overrides", [])
+    config = load_config(config_path=config_path, overrides=overrides)
+
+    print(f"[generate] Config: {config_path}", flush=True)
+    print(f"[generate] Total samples: {config.data.total_samples}", flush=True)
+    print(f"[generate] Model: {config.data.llm_model}", flush=True)
+
+    tokenizer = BertTokenizerFast.from_pretrained(config.model.name)
+
+    output_path = Path(args.output) if args.output else Path(config.data.dataset_path or "data/training_dataset.json")
+    concurrency = args.concurrency
+
+    result_path = run_generate(config, tokenizer, output_path, concurrency=concurrency)
+    print(f"\n[generate] Dataset ready: {result_path}", flush=True)
 
 
 def _run_train(args) -> None:

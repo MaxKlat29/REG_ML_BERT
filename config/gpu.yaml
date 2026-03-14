@@ -9,10 +9,12 @@ training:
   learning_rate_head: 1.0e-4
   warmup_steps: 100
   max_grad_norm: 1.0
-  num_epochs: 10
+  num_epochs: 20
   mixed_precision: "fp16"
   gradient_checkpointing: false
 
 data:
   max_seq_length: 512
-  samples_per_batch: 64
+  samples_per_batch: 512
+  total_samples: 10240
+  dataset_path: "data/training_dataset.json"

@@ -198,15 +198,21 @@ def build_generation_prompt(domain: str, include_references: bool = True) -> str
     """
     if include_references:
         return (
-            f"Schreiben Sie einen deutschen regulatorischen Absatz zum Thema {domain}. "
-            f"Markieren Sie jeden Rechtsverweis (z.B. §, Art., Anhang) mit XML-Tags "
-            f"im Format <ref>§ 25a {domain}</ref>. "
-            f"Beispiel: 'Gemäß <ref>§ 25a {domain}</ref> sind Kreditinstitute verpflichtet...' "
-            f"Der Text soll praxisnahe Verweise auf reale Normen des {domain} enthalten."
+            f"Schreiben Sie einen ausführlichen deutschen regulatorischen Fachtext "
+            f"(mindestens 3 Absätze, ca. 200-400 Wörter) zum Thema {domain}. "
+            f"Der Text soll mehrere Paragraphen, Artikel oder Anhänge des {domain} "
+            f"in ihrem Zusammenspiel erklären — praxisnah und detailliert. "
+            f"Markieren Sie JEDEN Rechtsverweis (z.B. §, Art., Anhang, Abs., Nr.) "
+            f"mit XML-Tags im Format <ref>§ 25a Abs. 1 {domain}</ref>. "
+            f"Beispiel: 'Gemäß <ref>§ 25a Abs. 1 {domain}</ref> sind Kreditinstitute "
+            f"verpflichtet, über eine ordnungsgemäße Geschäftsorganisation zu verfügen. "
+            f"Dies wird durch <ref>§ 25b {domain}</ref> konkretisiert...' "
+            f"Verwenden Sie möglichst viele verschiedene, reale Normverweise des {domain}."
         )
     else:
         return (
-            f"Schreiben Sie einen deutschen regulatorischen Absatz zum Thema {domain}. "
+            f"Schreiben Sie einen ausführlichen deutschen regulatorischen Fachtext "
+            f"(mindestens 3 Absätze, ca. 200-400 Wörter) zum Thema {domain}. "
             f"Verwenden Sie KEINE Rechtsverweise (keine §, Art., Anhang-Verweise). "
             f"Der Text soll sachlich und fachlich korrekt sein, "
             f"aber ausschließlich erklärenden Charakter ohne Normzitate haben."

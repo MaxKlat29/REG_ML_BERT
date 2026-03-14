@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import collections
 import copy
+import json
 import logging
 import time
 from pathlib import Path
@@ -32,6 +33,29 @@ def _collate_to_tensors(batch: list[dict]) -> dict[str, torch.Tensor]:
     }
 
 from src.data.dataset import LLMGeneratedDataset
+
+
+def _load_pregenerated_dataset(dataset_path: Path) -> list[dict]:
+    """Load pre-generated samples from JSON and return as list of encoding dicts.
+
+    Args:
+        dataset_path: Path to JSON file created by generate_dataset.py.
+
+    Returns:
+        List of dicts with input_ids, attention_mask, labels keys.
+    """
+    with dataset_path.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    samples = []
+    for entry in data["samples"]:
+        samples.append({
+            "input_ids": entry["input_ids"],
+            "attention_mask": entry["attention_mask"],
+            "labels": entry["labels_numeric"],
+        })
+    print(f"  [data] Loaded {len(samples)} samples from {dataset_path}", flush=True)
+    return samples
 from src.model.ner_model import RegulatoryNERModel
 
 logger = logging.getLogger(__name__)
@@ -254,8 +278,15 @@ class Trainer:
         optimizer = build_optimizer(self.model, config)
         print(f"  [setup] Optimizer built in {time.time()-t0:.1f}s", flush=True)
 
-        # Approximate steps per epoch (IterableDataset has no __len__)
-        steps_per_epoch = config.data.samples_per_batch
+        # Steps per epoch: use total_samples if dataset_path is set, else samples_per_batch
+        dataset_path_cfg = getattr(config.data, "dataset_path", "")
+        if dataset_path_cfg and Path(dataset_path_cfg).exists():
+            import json as _json
+            with open(dataset_path_cfg, "r") as _f:
+                _meta = _json.load(_f)["metadata"]
+            steps_per_epoch = _meta["total_samples"] // config.training.batch_size
+        else:
+            steps_per_epoch = config.data.samples_per_batch
 
         print(f"  [setup] Building scheduler (warmup={config.training.warmup_steps}, total={config.training.num_epochs * steps_per_epoch} steps)...", flush=True)
         scheduler = build_scheduler(optimizer, config, steps_per_epoch)
@@ -280,22 +311,43 @@ class Trainer:
 
         final_ckpt_path: Path | None = None
 
+        # Check for pre-generated dataset
+        dataset_path = getattr(config.data, "dataset_path", "")
+        pregenerated = dataset_path and Path(dataset_path).exists()
+
+        if pregenerated:
+            pregenerated_samples = _load_pregenerated_dataset(Path(dataset_path))
+            num_samples = len(pregenerated_samples)
+            print(f"  [data] Using pre-generated dataset: {num_samples} samples, "
+                  f"{num_samples // config.training.batch_size} batches/epoch", flush=True)
+
         for epoch in range(config.training.num_epochs):
             epoch_start = time.time()
             print(f"\n{'━'*60}", flush=True)
             print(f" Epoch {epoch+1}/{config.training.num_epochs}", flush=True)
             print(f"{'━'*60}", flush=True)
 
-            # Recreate dataset each epoch for fresh seeds (Pitfall 5)
-            print(f"  [data] Creating LLMGeneratedDataset (epoch={epoch}, cache={self.cache_path})...", flush=True)
-            dataset = LLMGeneratedDataset(
-                config,
-                self.tokenizer,
-                epoch=epoch,
-                cache_path=self.cache_path,
-            )
-            print(f"  [data] Building DataLoader (batch_size={config.training.batch_size})...", flush=True)
-            dataloader = DataLoader(dataset, batch_size=config.training.batch_size, collate_fn=_collate_to_tensors)
+            if pregenerated:
+                # Use pre-generated dataset with shuffle
+                print(f"  [data] Building DataLoader from pre-generated data...", flush=True)
+                dataloader = DataLoader(
+                    pregenerated_samples,
+                    batch_size=config.training.batch_size,
+                    collate_fn=_collate_to_tensors,
+                    shuffle=True,
+                )
+            else:
+                # Legacy: generate on-the-fly via LLM
+                print(f"  [data] Creating LLMGeneratedDataset (epoch={epoch}, cache={self.cache_path})...", flush=True)
+                dataset = LLMGeneratedDataset(
+                    config,
+                    self.tokenizer,
+                    epoch=epoch,
+                    cache_path=self.cache_path,
+                )
+                print(f"  [data] Building DataLoader (batch_size={config.training.batch_size})...", flush=True)
+                dataloader = DataLoader(dataset, batch_size=config.training.batch_size, collate_fn=_collate_to_tensors)
+
             print(f"  [data] Accelerator.prepare(dataloader)...", flush=True)
             t0 = time.time()
             dataloader = self.accelerator.prepare(dataloader)
@@ -303,10 +355,12 @@ class Trainer:
 
             epoch_loss = 0.0
             num_batches = 0
-            total_batches = config.data.samples_per_batch // config.training.batch_size
+            if pregenerated:
+                total_batches = len(pregenerated_samples) // config.training.batch_size
+            else:
+                total_batches = config.data.samples_per_batch // config.training.batch_size
 
             print(f"\n  [train] Starting training loop ({total_batches} batches expected)...", flush=True)
-            print(f"  [train] Iterating DataLoader (LLM generation + collation)...", flush=True)
 
             for batch in dataloader:
                 batch_start = time.time()

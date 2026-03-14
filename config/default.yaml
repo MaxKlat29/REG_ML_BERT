@@ -28,6 +28,8 @@ training:
 data:
   max_seq_length: 64
   samples_per_batch: 3
+  total_samples: 3
+  dataset_path: ""
   negative_sample_ratio: 0.4
   cache_dir: "data/cache"
   gold_test_dir: "data/gold_test"
