@@ -11,3 +11,5 @@ checkpoints/
 data/cache/
 wandb/
 .venv/
+.pytest_cache/
+.planning/
