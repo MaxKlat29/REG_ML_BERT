@@ -2,7 +2,7 @@
 # All hyperparameters. No hardcoded values in code.
 
 project:
-  name: "regulatory-ref-extraction"
+  name: "crossref-extraction"
   seed: 42
 
 device:
@@ -34,7 +34,8 @@ data:
   cache_dir: "data/cache"
   gold_test_dir: "data/gold_test"
   llm_seed: 1337
-  llm_model: "google/gemini-2.0-flash-001"
+  llm_model: "qwen2.5:14b"
+  ollama_endpoint: "http://localhost:11434"
 
 ensemble:
   enabled: false

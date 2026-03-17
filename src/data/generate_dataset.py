@@ -1,8 +1,8 @@
-"""Parallel dataset generator for regulatory NER training.
+"""Parallel dataset generator for cross-reference NER training.
 
-Generates all training samples upfront via async LLM calls, converts to
+Generates all training samples upfront via async Ollama LLM calls, converts to
 BIO-labeled encodings, and exports to JSON. Designed to run as a
-preprocessing step before training.
+preprocessing step before training on the GPU workstation.
 
 Usage:
     python run.py generate --config config/gpu.yaml
@@ -28,38 +28,39 @@ from src.data.bio_converter import (
 )
 from src.data.llm_client import (
     build_generation_prompt,
-    call_openrouter,
+    call_ollama,
+    get_context_for_seed,
     get_domain_for_seed,
+    parse_ref_tags,
 )
 
 logger = logging.getLogger(__name__)
 
-# Max concurrent LLM requests (OpenRouter is generous with rate limits)
-DEFAULT_CONCURRENCY = 50
+# Ollama runs locally — keep concurrency modest to avoid OOM on GPU
+DEFAULT_CONCURRENCY = 4
 
 
 async def _generate_one(
     client: httpx.AsyncClient,
     model: str,
-    api_key: str,
+    endpoint: str,
     seed: int,
     tokenizer,
     max_seq_length: int,
     negative_ratio: float,
     semaphore: asyncio.Semaphore,
 ) -> dict | None:
-    """Generate a single sample via LLM and convert to BIO encoding."""
+    """Generate a single sample via Ollama and convert to BIO encoding."""
     async with semaphore:
         try:
-            domain = get_domain_for_seed(seed)
+            doc_type, scenario = get_context_for_seed(seed)
             include_refs = (seed % 100) >= (negative_ratio * 100)
-            prompt = build_generation_prompt(domain, include_references=include_refs)
+            prompt = build_generation_prompt(doc_type, scenario, include_references=include_refs)
             messages = [{"role": "user", "content": prompt}]
 
-            tagged_text = await call_openrouter(
-                client, model, messages, seed, api_key
+            tagged_text = await call_ollama(
+                client, model, messages, seed, endpoint=endpoint
             )
-            from src.data.llm_client import parse_ref_tags
 
             text, spans = parse_ref_tags(tagged_text)
             encoding = char_spans_to_bio(
@@ -67,7 +68,7 @@ async def _generate_one(
             )
             encoding["_meta"] = {
                 "seed": seed,
-                "domain": domain,
+                "domain": f"{doc_type}: {scenario}",
                 "has_refs": include_refs,
                 "text": text,
                 "spans": spans,
@@ -90,13 +91,13 @@ async def generate_all(
         config: OmegaConf config with data.llm_model, data.max_seq_length, etc.
         tokenizer: Fast HuggingFace tokenizer.
         total_samples: Total number of samples to generate.
-        concurrency: Max parallel LLM requests.
+        concurrency: Max parallel Ollama requests.
 
     Returns:
         List of encoding dicts with _meta field.
     """
-    api_key = os.environ.get("OPENROUTER_API_KEY", "")
     model = config.data.llm_model
+    endpoint = getattr(config.data, "ollama_endpoint", "") or os.environ.get("OLLAMA_ENDPOINT", "") or "http://localhost:11434"
     max_seq_length = config.data.max_seq_length
     negative_ratio = getattr(config.data, "negative_sample_ratio", 0.4)
     base_seed = getattr(config.data, "llm_seed", 1337)
@@ -107,19 +108,19 @@ async def generate_all(
     skipped = 0
 
     print(
-        f"  [generate] Starting {total_samples} LLM calls "
-        f"(concurrency={concurrency}, model={model})",
+        f"  [generate] Starting {total_samples} Ollama calls "
+        f"(concurrency={concurrency}, model={model}, endpoint={endpoint})",
         flush=True,
     )
 
     start = time.time()
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=180.0) as client:
         tasks = [
             _generate_one(
                 client,
                 model,
-                api_key,
+                endpoint,
                 base_seed + i,
                 tokenizer,
                 max_seq_length,

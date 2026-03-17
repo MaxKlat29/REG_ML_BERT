@@ -1,14 +1,14 @@
 """Gold test set generator.
 
-Generates a frozen, reviewable evaluation dataset of German regulatory text
-with both positive (with references) and negative (no references) examples.
+Generates a frozen, reviewable evaluation dataset of German documents
+with both positive (with cross-references) and negative (no references) examples.
 
 The gold set must be generated and reviewed BEFORE any model training begins.
 It serves as ground truth for evaluating the ML model vs the regex baseline.
 
-Usage (from project root):
-    PYTHONPATH=. OPENROUTER_API_KEY=sk-... python scripts/generate_gold_test.py
-    PYTHONPATH=. OPENROUTER_API_KEY=sk-... python scripts/generate_gold_test.py data.gold_test_dir=data/gold_test
+Usage (from project root, on GPU workstation):
+    PYTHONPATH=. python scripts/generate_gold_test.py
+    PYTHONPATH=. python scripts/generate_gold_test.py data.gold_test_dir=data/gold_test
 
 Output:
     data/gold_test/gold_test_set.json  (or configured path)
@@ -27,8 +27,8 @@ import httpx
 
 from src.data.bio_converter import char_spans_to_bio, get_tokenizer
 from src.data.llm_client import (
-    call_openrouter,
-    get_domain_for_seed,
+    call_ollama,
+    get_context_for_seed,
     parse_ref_tags,
 )
 
@@ -37,15 +37,12 @@ from src.data.llm_client import (
 # Prompt builder — higher quality than training prompts
 # ---------------------------------------------------------------------------
 
-def build_gold_prompt(domain: str, include_references: bool = True) -> str:
+def build_gold_prompt(doc_type: str, scenario: str, include_references: bool = True) -> str:
     """Build a high-quality German prompt for gold test set generation.
 
-    The prompt requests realistic, diverse regulatory text. For positive
-    examples it asks for precise <ref> tag placement around all legal
-    citations. For negative examples it strictly excludes all references.
-
     Args:
-        domain:             German regulatory domain abbreviation, e.g. "KWG".
+        doc_type:           Document type, e.g. "Dienstleistungsvertrag".
+        scenario:           Scenario hint, e.g. "IT-Outsourcing mit SLA-Anhängen".
         include_references: True for positive samples, False for negatives.
 
     Returns:
@@ -53,22 +50,26 @@ def build_gold_prompt(domain: str, include_references: bool = True) -> str:
     """
     if include_references:
         return (
-            f"Schreiben Sie einen realistischen deutschen Regulierungstext zum Thema {domain}. "
-            f"Markieren Sie JEDEN Rechtsverweis (§, Art., Abs., Anhang, Nr., Tz.) präzise "
-            f"mit XML-Tags: <ref>§ 25a {domain}</ref>. "
-            f"Der Tag beginnt genau am ersten Zeichen des Verweises und endet nach dem letzten. "
-            f"Verwenden Sie reale Normen des {domain}. "
-            f"Der Absatz soll 2-4 Sätze umfassen und mindestens 2 Rechtsverweise enthalten. "
-            f"Beispiel: 'Gemäß <ref>§ 25a Abs. 1 {domain}</ref> sind Institute verpflichtet, "
-            f"nach <ref>§ 10 {domain}</ref> ausreichend Eigenkapital vorzuhalten.'"
+            f"Schreiben Sie einen realistischen deutschen Textauszug aus einem "
+            f"'{doc_type}' zum Thema: {scenario}.\n\n"
+            f"Markieren Sie JEDEN Querverweis präzise mit XML-Tags: <ref>...</ref>.\n"
+            f"Der Tag beginnt genau am ersten Zeichen des Verweises und endet nach dem letzten.\n\n"
+            f"Querverweise umfassen: Gesetzesverweise (§, Art.), Vertragsklauseln (Ziffer, Punkt), "
+            f"Anhänge/Anlagen, Abschnitte/Kapitel, SLA-Verweise, Normen (ISO, DIN).\n\n"
+            f"Der Absatz soll 2-4 Sätze umfassen und mindestens 3 verschiedene Querverweise enthalten.\n\n"
+            f"Beispiel: 'Gemäß <ref>Ziffer 5.1</ref> dieses Vertrages sind die in "
+            f"<ref>Anlage 2</ref> definierten Leistungen nach <ref>§ 280 Abs. 1 BGB</ref> "
+            f"geschuldet.'"
         )
     else:
         return (
-            f"Schreiben Sie einen sachlichen deutschen Regulierungstext zum Thema {domain}. "
-            f"Verwenden Sie KEINE Rechtsverweise — KEINE §, Art., Abs., Anhang, Tz. oder "
-            f"ähnlichen Normzitate. "
-            f"Der Text soll fachlich korrekte Erklärungen zu regulatorischen Konzepten "
-            f"enthalten, aber ausschließlich beschreibend ohne Normbezüge sein. "
+            f"Schreiben Sie einen sachlichen deutschen Textauszug aus einem "
+            f"'{doc_type}' zum Thema: {scenario}.\n\n"
+            f"Verwenden Sie KEINE Querverweise jeglicher Art — KEINE §, Art., Abs., "
+            f"Anhang, Anlage, Ziffer, Punkt, Abschnitt, Kapitel, 'siehe', 'vgl.', "
+            f"ISO, DIN oder ähnliche Verweise.\n\n"
+            f"Der Text soll fachlich korrekte Erklärungen enthalten, aber ausschließlich "
+            f"beschreibend ohne Verweise auf andere Textstellen sein.\n"
             f"Der Absatz soll 2-4 Sätze umfassen."
         )
 
@@ -84,35 +85,24 @@ async def _generate_single_sample(
     num_samples: int,
     tokenizer,
 ) -> dict:
-    """Generate one gold sample asynchronously.
-
-    Args:
-        client:       Shared httpx.AsyncClient.
-        config:       OmegaConf config object.
-        sample_index: Zero-based index of this sample (0 .. num_samples-1).
-        num_samples:  Total number of samples being generated.
-        tokenizer:    Fast HuggingFace tokenizer for BIO conversion.
-
-    Returns:
-        Sample dict with all required fields.
-    """
-    # Deterministic positive/negative split:
-    # first (ratio * num_samples) samples are negative, the rest are positive.
+    """Generate one gold sample asynchronously."""
     num_negative = int(num_samples * config.data.negative_sample_ratio)
     include_refs = sample_index >= num_negative
 
     sample_seed = config.data.llm_seed + sample_index
-    domain = get_domain_for_seed(sample_seed)
+    doc_type, scenario = get_context_for_seed(sample_seed)
 
-    prompt_text = build_gold_prompt(domain, include_references=include_refs)
+    prompt_text = build_gold_prompt(doc_type, scenario, include_references=include_refs)
     messages = [{"role": "user", "content": prompt_text}]
 
-    tagged_text = await call_openrouter(
+    endpoint = getattr(config.data, "ollama_endpoint", "") or os.environ.get("OLLAMA_ENDPOINT", "") or "http://localhost:11434"
+
+    tagged_text = await call_ollama(
         client=client,
         model=config.data.llm_model,
         messages=messages,
         seed=sample_seed,
-        api_key=os.environ.get("OPENROUTER_API_KEY", ""),
+        endpoint=endpoint,
     )
 
     clean_text, spans = parse_ref_tags(tagged_text)
@@ -123,7 +113,7 @@ async def _generate_single_sample(
         "spans": list(spans),
         "bio_labels": bio_encoding,
         "needs_review": True,
-        "domain": domain,
+        "domain": f"{doc_type}: {scenario}",
         "seed": sample_seed,
         "has_references": include_refs,
     }
@@ -134,21 +124,7 @@ def generate_gold_set(
     num_samples: int = 50,
     output_path: Path | None = None,
 ) -> list[dict]:
-    """Generate the gold test set and persist it as JSON.
-
-    Uses a fixed seed from config for full reproducibility. The positive/negative
-    split is determined by config.data.negative_sample_ratio. Every sample has
-    needs_review: True.
-
-    Args:
-        config:       OmegaConf DictConfig with data.* keys.
-        num_samples:  Number of gold samples to generate (default 50).
-        output_path:  Where to write the JSON file. If None, derived from
-                      config.data.gold_test_dir / "gold_test_set.json".
-
-    Returns:
-        List of sample dicts.
-    """
+    """Generate the gold test set and persist it as JSON."""
     if output_path is None:
         output_path = Path(config.data.gold_test_dir) / "gold_test_set.json"
     output_path = Path(output_path)
@@ -157,7 +133,7 @@ def generate_gold_set(
     tokenizer = get_tokenizer(config.model.name if hasattr(config, "model") else "deepset/gbert-large")
 
     async def _run_all() -> list[dict]:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=180.0) as client:
             tasks = [
                 _generate_single_sample(client, config, i, num_samples, tokenizer)
                 for i in range(num_samples)
@@ -171,12 +147,7 @@ def generate_gold_set(
 
 
 def save_gold_set(samples: list[dict], output_path: Path) -> None:
-    """Persist gold set samples to a JSON file.
-
-    Args:
-        samples:     List of sample dicts to serialize.
-        output_path: Destination file path.
-    """
+    """Persist gold set samples to a JSON file."""
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as fh:
@@ -188,12 +159,7 @@ def save_gold_set(samples: list[dict], output_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    """Load config and generate the gold test set.
-
-    Reads config from config/default.yaml (with optional CLI overrides),
-    generates num_samples samples, and writes them to the configured path.
-    Prints a summary after completion.
-    """
+    """Load config and generate the gold test set."""
     from src.utils.config import load_config
 
     config = load_config()
@@ -201,6 +167,7 @@ def main() -> None:
 
     print(f"Generating gold test set ({50} samples) ...")
     print(f"  Model     : {config.data.llm_model}")
+    print(f"  Endpoint  : {getattr(config.data, 'ollama_endpoint', 'http://localhost:11434')}")
     print(f"  Seed      : {config.data.llm_seed}")
     print(f"  Neg ratio : {config.data.negative_sample_ratio}")
     print(f"  Output    : {output_path}")

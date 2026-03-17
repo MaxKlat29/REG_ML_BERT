@@ -1,14 +1,15 @@
 """
-CLI entry point for the Regulatory NER pipeline.
+CLI entry point for the Cross-Reference NER pipeline.
 
 Subcommands:
   train    — train RegulatoryNERModel (or ensemble) and save checkpoints
+  generate — generate training dataset via local Ollama LLM
   evaluate — evaluate model vs regex baseline on gold test set
   predict  — run inference on a text string or file of texts
 
 Usage:
-  python run.py train [config overrides...]
-  python run.py train --help
+  python run.py generate --config config/gpu.yaml --concurrency 4
+  python run.py train --config config/gpu.yaml
   python run.py evaluate --checkpoint checkpoints/run/epoch_0.pt
   python run.py predict --text "Gemaess § 25a KWG"
   python run.py predict --file inputs.txt
@@ -21,7 +22,7 @@ import sys
 import logging
 
 from dotenv import load_dotenv
-load_dotenv()  # Load .env before any module reads OPENROUTER_API_KEY
+load_dotenv()  # Load .env before any module reads env vars
 
 logging.basicConfig(
     level=logging.INFO,
@@ -176,9 +177,11 @@ def _run_generate(args) -> None:
     overrides = getattr(args, "overrides", [])
     config = load_config(config_path=config_path, overrides=overrides)
 
+    endpoint = getattr(config.data, "ollama_endpoint", "http://localhost:11434")
     print(f"[generate] Config: {config_path}", flush=True)
     print(f"[generate] Total samples: {config.data.total_samples}", flush=True)
     print(f"[generate] Model: {config.data.llm_model}", flush=True)
+    print(f"[generate] Ollama endpoint: {endpoint}", flush=True)
 
     tokenizer = BertTokenizerFast.from_pretrained(config.model.name)
 

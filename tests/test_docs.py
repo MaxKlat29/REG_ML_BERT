@@ -17,11 +17,11 @@ def test_readme_exists():
 
 
 def test_env_example_exists():
-    """.env.example exists and contains OPENROUTER_API_KEY."""
+    """.env.example exists and contains OLLAMA_ENDPOINT."""
     env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env.example")
     assert os.path.isfile(env_path), ".env.example does not exist"
     content = open(env_path).read()
-    assert "OPENROUTER_API_KEY" in content, ".env.example does not contain OPENROUTER_API_KEY"
+    assert "OLLAMA_ENDPOINT" in content, ".env.example does not contain OLLAMA_ENDPOINT"
 
 
 def _get_src_modules():

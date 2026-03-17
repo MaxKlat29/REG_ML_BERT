@@ -1,7 +1,7 @@
 """LLMGeneratedDataset: PyTorch IterableDataset for on-the-fly training data.
 
 Composes:
-  - LLM generation (OpenRouter API via llm_client)
+  - LLM generation (Ollama API via llm_client)
   - BIO label conversion (char spans -> token labels via offset_mapping)
   - JSONL disk cache (optional read-from-cache mode for ensemble resampling)
 
@@ -22,7 +22,8 @@ from src.data.bio_converter import char_spans_to_bio
 from src.data.cache import append_to_cache, load_cache
 from src.data.llm_client import (
     build_generation_prompt,
-    call_openrouter,
+    call_ollama,
+    get_context_for_seed,
     get_domain_for_seed,
     parse_ref_tags,
 )
@@ -33,7 +34,7 @@ logger = logging.getLogger(__name__)
 class LLMGeneratedDataset(IterableDataset):
     """Iterable dataset that generates training samples via LLM on-the-fly.
 
-    In live mode (_iter_from_llm): calls OpenRouter for each sample, parses
+    In live mode (_iter_from_llm): calls Ollama for each sample, parses
     <ref>...</ref> tags, converts char spans to BIO labels.
 
     In cache mode (_iter_from_cache): reads pre-generated JSONL cache
@@ -147,20 +148,19 @@ class LLMGeneratedDataset(IterableDataset):
             Encoding dict (input_ids, attention_mask, labels) or None on error.
         """
         try:
-            api_key = os.environ.get("OPENROUTER_API_KEY", "")
-            domain = get_domain_for_seed(seed)
-            prompt = build_generation_prompt(domain)
+            doc_type, scenario = get_context_for_seed(seed)
+            prompt = build_generation_prompt(doc_type, scenario)
             model = self.config.data.llm_model
+            endpoint = getattr(self.config.data, "ollama_endpoint", "") or os.environ.get("OLLAMA_ENDPOINT", "") or "http://localhost:11434"
 
-            # Async -> sync: run the coroutine in a new event loop
             messages = [{"role": "user", "content": prompt}]
 
             import httpx
 
             async def _run():
-                async with httpx.AsyncClient() as client:
-                    return await call_openrouter(
-                        client, model, messages, seed, api_key
+                async with httpx.AsyncClient(timeout=180.0) as client:
+                    return await call_ollama(
+                        client, model, messages, seed, endpoint=endpoint
                     )
 
             tagged_text = asyncio.run(_run())

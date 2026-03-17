@@ -32,7 +32,8 @@ def _make_config(tmp_path: Path, negative_ratio: float = 0.4, seed: int = 1337) 
             "negative_sample_ratio": negative_ratio,
             "gold_test_dir": str(tmp_path / "gold_test"),
             "llm_seed": seed,
-            "llm_model": "google/gemini-flash-1.5",
+            "llm_model": "qwen2.5:14b",
+            "ollama_endpoint": "http://localhost:11434",
         },
         "model": {
             "name": "deepset/gbert-large",
@@ -69,7 +70,7 @@ class TestGoldGenerationProducesJson:
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         with patch(
-            "scripts.generate_gold_test.call_openrouter",
+            "scripts.generate_gold_test.call_ollama",
             new_callable=AsyncMock,
             side_effect=_make_side_effect(),
         ):
@@ -90,7 +91,7 @@ class TestAllSamplesHaveNeedsReview:
         output_path = tmp_path / "gold_test_set.json"
 
         with patch(
-            "scripts.generate_gold_test.call_openrouter",
+            "scripts.generate_gold_test.call_ollama",
             new_callable=AsyncMock,
             side_effect=_make_side_effect(),
         ):
@@ -110,7 +111,7 @@ class TestPositiveNegativeMix:
         output_path = tmp_path / "gold_test_set.json"
 
         with patch(
-            "scripts.generate_gold_test.call_openrouter",
+            "scripts.generate_gold_test.call_ollama",
             new_callable=AsyncMock,
             side_effect=_make_side_effect(),
         ):
@@ -122,7 +123,6 @@ class TestPositiveNegativeMix:
         assert len(negatives) > 0, "No negative samples found"
         assert len(positives) > 0, "No positive samples found"
 
-        # With ratio=0.4 and 10 samples: first 4 negative, next 6 positive
         expected_negatives = int(10 * 0.4)
         assert len(negatives) == expected_negatives, (
             f"Expected {expected_negatives} negatives, got {len(negatives)}"
@@ -139,7 +139,7 @@ class TestGoldSamplesHaveRequiredFields:
         output_path = tmp_path / "gold_test_set.json"
 
         with patch(
-            "scripts.generate_gold_test.call_openrouter",
+            "scripts.generate_gold_test.call_ollama",
             new_callable=AsyncMock,
             side_effect=_make_side_effect(),
         ):
@@ -149,16 +149,12 @@ class TestGoldSamplesHaveRequiredFields:
             missing = self.REQUIRED_KEYS - set(sample.keys())
             assert not missing, f"Sample {i} missing fields: {missing}"
 
-            # bio_labels is a dict with input_ids, attention_mask, labels
             bio = sample["bio_labels"]
             assert isinstance(bio, dict), f"Sample {i}: bio_labels should be dict"
             assert "labels" in bio, f"Sample {i}: bio_labels missing 'labels'"
             assert "input_ids" in bio, f"Sample {i}: bio_labels missing 'input_ids'"
 
-            # spans is a list of [start, end] pairs (JSON serializes tuples as lists)
             assert isinstance(sample["spans"], list), f"Sample {i}: spans should be list"
-
-            # domain is non-empty string
             assert isinstance(sample["domain"], str) and sample["domain"], (
                 f"Sample {i}: domain is empty"
             )
@@ -171,7 +167,7 @@ class TestFixedSeedReproducibility:
         config = _make_config(tmp_path, seed=42)
 
         with patch(
-            "scripts.generate_gold_test.call_openrouter",
+            "scripts.generate_gold_test.call_ollama",
             new_callable=AsyncMock,
             side_effect=_make_side_effect(),
         ):
@@ -179,27 +175,23 @@ class TestFixedSeedReproducibility:
             samples_a = generate_gold_set(config, num_samples=8, output_path=path_a)
 
         with patch(
-            "scripts.generate_gold_test.call_openrouter",
+            "scripts.generate_gold_test.call_ollama",
             new_callable=AsyncMock,
             side_effect=_make_side_effect(),
         ):
             path_b = tmp_path / "run_b.json"
             samples_b = generate_gold_set(config, num_samples=8, output_path=path_b)
 
-        # Same number of samples
         assert len(samples_a) == len(samples_b)
 
-        # Same positive/negative structure
         refs_a = [s["has_references"] for s in samples_a]
         refs_b = [s["has_references"] for s in samples_b]
         assert refs_a == refs_b, "has_references sequence differs between runs"
 
-        # Same domains selected
         domains_a = [s["domain"] for s in samples_a]
         domains_b = [s["domain"] for s in samples_b]
         assert domains_a == domains_b, "Domain sequence differs between runs"
 
-        # Same seeds per sample
         seeds_a = [s["seed"] for s in samples_a]
         seeds_b = [s["seed"] for s in samples_b]
         assert seeds_a == seeds_b, "Seed sequence differs between runs"

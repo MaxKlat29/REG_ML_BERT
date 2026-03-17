@@ -1,7 +1,9 @@
 # config/gpu.yaml
-# Production training on CUDA GPU (RTX 3090/4090)
+# Production training on CUDA GPU (RTX 3090)
 # Usage: python run.py train --config config/gpu.yaml
-# Or override from default: python run.py train training.batch_size=16 training.num_epochs=10
+#
+# Data generation (run on GPU workstation where Ollama is local):
+#   python run.py generate --config config/gpu.yaml --concurrency 4
 
 training:
   batch_size: 16
@@ -16,5 +18,7 @@ training:
 data:
   max_seq_length: 512
   samples_per_batch: 512
-  total_samples: 10240
+  total_samples: 100000
   dataset_path: "data/training_dataset.json"
+  llm_model: "qwen2.5:14b"
+  ollama_endpoint: "http://localhost:11434"
