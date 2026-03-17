@@ -34,7 +34,7 @@ data:
   cache_dir: "data/cache"
   gold_test_dir: "data/gold_test"
   llm_seed: 1337
-  llm_model: "qwen2.5:14b"
+  llm_model: "qwen2.5:7b"
   ollama_endpoint: "http://localhost:11434"
 
 ensemble:
