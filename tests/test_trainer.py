@@ -80,6 +80,9 @@ def make_full_config(
             max_grad_norm=max_grad_norm,
             num_epochs=num_epochs,
             mixed_precision=mixed_precision,
+            class_weights=None,
+            validation_split=0.0,
+            early_stopping_patience=0,
         ),
         data=SimpleNamespace(
             max_seq_length=32,
@@ -641,7 +644,7 @@ class TestRunPyTrainSubcommand:
             # Import run.py as a module and call main
             import importlib.util
             spec = importlib.util.spec_from_file_location(
-                "run", "/Users/Admin/REG_ML/run.py"
+                "run", str(Path(__file__).resolve().parent.parent / "run.py")
             )
             run_module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(run_module)

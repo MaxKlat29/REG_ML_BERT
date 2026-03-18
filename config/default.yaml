@@ -24,6 +24,9 @@ training:
   num_epochs: 1
   mixed_precision: "no"
   gradient_checkpointing: true  # Trade compute for memory on MPS
+  class_weights: "auto"  # "auto" = compute from data, or list like [1.0, 20.0, 10.0]
+  validation_split: 0.1  # Fraction of data held out for validation
+  early_stopping_patience: 3  # Stop after N epochs without val loss improvement
 
 data:
   max_seq_length: 64

@@ -35,6 +35,32 @@ def _collate_to_tensors(batch: list[dict]) -> dict[str, torch.Tensor]:
 from src.data.dataset import LLMGeneratedDataset
 
 
+def compute_class_weights(
+    samples: list[dict], num_labels: int = 3
+) -> torch.Tensor:
+    """Compute inverse-frequency class weights (sklearn 'balanced' formula).
+
+    Counts non-IGNORE label occurrences, then: weight_c = total / (num_labels * count_c).
+
+    Args:
+        samples: List of dicts with 'labels' key (list of int, -100 for IGNORE).
+        num_labels: Number of valid label classes (default 3: O, B-REF, I-REF).
+
+    Returns:
+        Float tensor of shape (num_labels,) with per-class weights, clamped to [0.1, 100].
+    """
+    counts = torch.zeros(num_labels, dtype=torch.long)
+    for sample in samples:
+        for label in sample["labels"]:
+            if 0 <= label < num_labels:
+                counts[label] += 1
+
+    total = counts.sum().float()
+    weights = total / (num_labels * counts.float().clamp(min=1))
+    weights = weights.clamp(min=0.1, max=100.0)
+    return weights
+
+
 def _load_pregenerated_dataset(dataset_path: Path) -> list[dict]:
     """Load pre-generated samples from JSON and return as list of encoding dicts.
 
@@ -225,7 +251,8 @@ def load_checkpoint(
         Epoch number stored in the checkpoint.
     """
     ckpt = torch.load(path, weights_only=True)
-    model.load_state_dict(ckpt["model_state_dict"])
+    # strict=False: _class_weights buffer may be in checkpoint but not in fresh model (or vice versa)
+    model.load_state_dict(ckpt["model_state_dict"], strict=False)
     if optimizer is not None and ckpt.get("optimizer_state_dict") is not None:
         optimizer.load_state_dict(ckpt["optimizer_state_dict"])
     if scheduler is not None and ckpt.get("scheduler_state_dict") is not None:
@@ -279,17 +306,70 @@ class Trainer:
         print(f"  [setup] Optimizer built in {time.time()-t0:.1f}s", flush=True)
 
         # Steps per epoch: use total_samples if dataset_path is set, else samples_per_batch
+        # Account for validation split so scheduler total steps is correct
         dataset_path_cfg = getattr(config.data, "dataset_path", "")
         if dataset_path_cfg and Path(dataset_path_cfg).exists():
             import json as _json
             with open(dataset_path_cfg, "r") as _f:
                 _meta = _json.load(_f)["metadata"]
-            steps_per_epoch = _meta["total_samples"] // config.training.batch_size
+            effective_samples = _meta["total_samples"]
+            val_split = getattr(config.training, "validation_split", 0.0)
+            if val_split and val_split > 0:
+                effective_samples = int(effective_samples * (1 - val_split))
+            steps_per_epoch = effective_samples // config.training.batch_size
         else:
             steps_per_epoch = config.data.samples_per_batch
 
         print(f"  [setup] Building scheduler (warmup={config.training.warmup_steps}, total={config.training.num_epochs * steps_per_epoch} steps)...", flush=True)
         scheduler = build_scheduler(optimizer, config, steps_per_epoch)
+
+        # Load pre-generated dataset BEFORE accelerator.prepare so we can
+        # compute class weights and inject them into the model first.
+        dataset_path = getattr(config.data, "dataset_path", "")
+        pregenerated = dataset_path and Path(dataset_path).exists()
+        pregenerated_samples = None
+
+        if pregenerated:
+            all_samples = _load_pregenerated_dataset(Path(dataset_path))
+            num_samples = len(all_samples)
+
+            # Validation split
+            val_split = getattr(config.training, "validation_split", 0.0)
+            if val_split and val_split > 0:
+                import random
+                rng = random.Random(config.project.seed)
+                indices = list(range(num_samples))
+                rng.shuffle(indices)
+                val_size = int(num_samples * val_split)
+                val_samples = [all_samples[i] for i in indices[:val_size]]
+                pregenerated_samples = [all_samples[i] for i in indices[val_size:]]
+                print(f"  [data] Using pre-generated dataset: {len(pregenerated_samples)} train, "
+                      f"{len(val_samples)} val ({val_split*100:.0f}% split), "
+                      f"{len(pregenerated_samples) // config.training.batch_size} batches/epoch", flush=True)
+            else:
+                pregenerated_samples = all_samples
+                val_samples = None
+                print(f"  [data] Using pre-generated dataset: {num_samples} samples, "
+                      f"{num_samples // config.training.batch_size} batches/epoch", flush=True)
+
+        # Inject class weights for imbalanced data (must happen before accelerator.prepare)
+        class_weights_cfg = getattr(config.training, "class_weights", None)
+        if class_weights_cfg and not getattr(self.model, "_use_crf", False):
+            if class_weights_cfg == "auto":
+                if pregenerated and pregenerated_samples:
+                    weights = compute_class_weights(pregenerated_samples)
+                else:
+                    # Approximate weights for on-the-fly data
+                    weights = torch.tensor([1.0, 18.0, 9.0], dtype=torch.float)
+                    print(f"  [setup] Using approximate class weights (no pregenerated data)", flush=True)
+            elif isinstance(class_weights_cfg, (list, tuple)):
+                weights = torch.tensor(class_weights_cfg, dtype=torch.float)
+            else:
+                weights = None
+
+            if weights is not None:
+                self.model.set_class_weights(weights)
+                print(f"  [setup] Class weights: O={weights[0]:.2f}, B-REF={weights[1]:.2f}, I-REF={weights[2]:.2f}", flush=True)
 
         # Prepare model, optimizer, scheduler together
         print(f"  [setup] Accelerator.prepare(model, optimizer, scheduler)...", flush=True)
@@ -310,16 +390,10 @@ class Trainer:
             print(f"  [setup] MPS memory management: empty_cache() after each batch", flush=True)
 
         final_ckpt_path: Path | None = None
-
-        # Check for pre-generated dataset
-        dataset_path = getattr(config.data, "dataset_path", "")
-        pregenerated = dataset_path and Path(dataset_path).exists()
-
-        if pregenerated:
-            pregenerated_samples = _load_pregenerated_dataset(Path(dataset_path))
-            num_samples = len(pregenerated_samples)
-            print(f"  [data] Using pre-generated dataset: {num_samples} samples, "
-                  f"{num_samples // config.training.batch_size} batches/epoch", flush=True)
+        best_ckpt_path: Path | None = None
+        best_val_loss = float("inf")
+        patience_counter = 0
+        patience = getattr(config.training, "early_stopping_patience", 0)
 
         for epoch in range(config.training.num_epochs):
             epoch_start = time.time()
@@ -451,11 +525,58 @@ class Trainer:
             )
             print(f"  [ckpt] Saved in {time.time()-t0:.1f}s: {final_ckpt_path}", flush=True)
 
+            # Validation loss
+            if pregenerated and val_samples:
+                val_loss = self._compute_val_loss(val_samples, config)
+                print(f"  [val] Validation loss: {val_loss:.4f} (best: {best_val_loss:.4f})", flush=True)
+
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    patience_counter = 0
+                    best_ckpt_path = final_ckpt_path
+                    print(f"  [val] ↓ New best — saving as best checkpoint", flush=True)
+                else:
+                    patience_counter += 1
+                    print(f"  [val] ↑ No improvement ({patience_counter}/{patience})", flush=True)
+
+                if patience and patience_counter >= patience:
+                    print(f"\n  ⚠ Early stopping after {epoch+1} epochs (patience={patience})", flush=True)
+                    final_ckpt_path = best_ckpt_path
+                    break
+
         total_time = time.time() - train_start
         print(f"\n{'━'*60}", flush=True)
         print(f" Training complete in {total_time:.1f}s | Final checkpoint: {final_ckpt_path}", flush=True)
         print(f"{'━'*60}", flush=True)
         return final_ckpt_path
+
+    def _compute_val_loss(self, val_samples: list[dict], config) -> float:
+        """Compute average loss on validation samples without gradient updates."""
+        self.model.eval()
+        val_loader = DataLoader(
+            val_samples,
+            batch_size=config.training.batch_size,
+            collate_fn=_collate_to_tensors,
+            shuffle=False,
+        )
+        val_loader = self.accelerator.prepare(val_loader)
+
+        total_loss = 0.0
+        n_batches = 0
+        with torch.no_grad():
+            for batch in val_loader:
+                with self.accelerator.autocast():
+                    output = self.model(
+                        input_ids=batch["input_ids"],
+                        attention_mask=batch["attention_mask"],
+                        labels=batch["labels"],
+                    )
+                    loss = output[0] if isinstance(output, tuple) else output.loss
+                total_loss += loss.item()
+                n_batches += 1
+
+        self.model.train()
+        return total_loss / max(n_batches, 1)
 
 
 # ---------------------------------------------------------------------------

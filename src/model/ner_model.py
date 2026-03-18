@@ -18,6 +18,7 @@ import warnings
 import torch
 import torch.nn as nn
 from transformers import BertModel, BertForTokenClassification
+from transformers.modeling_outputs import TokenClassifierOutput
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ class RegulatoryNERModel(nn.Module):
             model_name, num_labels=self.NUM_LABELS
         )
         self._use_crf = False
+        self.register_buffer("_class_weights", None)
 
     def _enable_gradient_checkpointing(self) -> None:
         """Enable gradient checkpointing to reduce memory at the cost of compute."""
@@ -141,6 +143,20 @@ class RegulatoryNERModel(nn.Module):
         return []
 
     # ------------------------------------------------------------------
+    # Class weights for imbalanced data
+    # ------------------------------------------------------------------
+
+    def set_class_weights(self, weights: torch.Tensor) -> None:
+        """Register per-class weights for weighted CrossEntropyLoss (non-CRF path).
+
+        Uses register_buffer so weights move with the model across devices.
+
+        Args:
+            weights: Tensor of shape (NUM_LABELS,) with per-class weights.
+        """
+        self.register_buffer("_class_weights", weights)
+
+    # ------------------------------------------------------------------
     # Forward
     # ------------------------------------------------------------------
 
@@ -152,8 +168,10 @@ class RegulatoryNERModel(nn.Module):
     ):
         """Run a forward pass through the model.
 
-        Non-CRF path: delegates to BertForTokenClassification and returns
-        a TokenClassifierOutput (with .loss and .logits).
+        Non-CRF path with class weights: computes weighted CrossEntropyLoss
+        instead of the default unweighted loss from BertForTokenClassification.
+
+        Non-CRF path without class weights: delegates to BertForTokenClassification.
 
         CRF path with labels: returns (loss: scalar, emissions: B x S x 3).
         CRF path without labels: returns list[list[int]] from Viterbi decode.
@@ -172,10 +190,38 @@ class RegulatoryNERModel(nn.Module):
         """
         if self._use_crf:
             return self._forward_crf(input_ids, attention_mask, labels)
+
+        # Use weighted loss when class weights are set and labels are provided
+        if labels is not None and self._class_weights is not None:
+            return self._forward_weighted(input_ids, attention_mask, labels)
+
         return self.bert_tc(
             input_ids=input_ids,
             attention_mask=attention_mask,
             labels=labels,
+        )
+
+    def _forward_weighted(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor,
+        labels: torch.Tensor,
+    ) -> TokenClassifierOutput:
+        """Forward pass with weighted CrossEntropyLoss for class-imbalanced data."""
+        # Get logits without HF-internal loss computation
+        output = self.bert_tc(input_ids=input_ids, attention_mask=attention_mask, labels=None)
+        logits = output.logits  # (B, S, NUM_LABELS)
+
+        # Cast weights to match logits dtype (critical for fp16/bf16 mixed precision)
+        weights = self._class_weights.to(dtype=logits.dtype, device=logits.device)
+        loss_fct = nn.CrossEntropyLoss(weight=weights, ignore_index=-100)
+        loss = loss_fct(logits.view(-1, self.NUM_LABELS), labels.view(-1))
+
+        return TokenClassifierOutput(
+            loss=loss,
+            logits=logits,
+            hidden_states=output.hidden_states,
+            attentions=output.attentions,
         )
 
     def _forward_crf(

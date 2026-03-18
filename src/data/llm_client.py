@@ -212,7 +212,16 @@ def parse_ref_tags(tagged_text: str) -> tuple[str, list[tuple[int, int]]]:
     for match in _REF_PATTERN.finditer(tagged_text):
         tag_start = match.start()
         tag_end = match.end()
-        ref_content = match.group(1)
+        ref_content = match.group(1).strip()
+
+        # Skip empty or whitespace-only refs (LLM artefact)
+        if not ref_content:
+            # Still need to consume the tag from the input
+            before = tagged_text[cursor:tag_start]
+            clean_parts.append(before)
+            clean_offset += len(before)
+            cursor = tag_end
+            continue
 
         # Append text before this tag to clean output
         before = tagged_text[cursor:tag_start]

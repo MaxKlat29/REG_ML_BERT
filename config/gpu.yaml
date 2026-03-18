@@ -11,14 +11,17 @@ training:
   learning_rate_head: 1.0e-4
   warmup_steps: 100
   max_grad_norm: 1.0
-  num_epochs: 20
+  num_epochs: 10
   mixed_precision: "fp16"
   gradient_checkpointing: false
+  class_weights: "auto"
+  validation_split: 0.1
+  early_stopping_patience: 3
 
 data:
   max_seq_length: 512
   samples_per_batch: 512
-  total_samples: 100000
+  total_samples: 15000
   dataset_path: "data/training_dataset.json"
   llm_model: "qwen2.5:7b"
   ollama_endpoint: "http://localhost:11434"

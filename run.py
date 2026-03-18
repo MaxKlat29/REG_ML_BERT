@@ -77,8 +77,8 @@ def main(argv: list[str] | None = None) -> None:
     gen_parser.add_argument(
         "--concurrency",
         type=int,
-        default=50,
-        help="Max parallel LLM requests (default: 50)",
+        default=4,
+        help="Max parallel LLM requests (default: 4, match to local Ollama capacity)",
     )
     gen_parser.add_argument(
         "overrides",
@@ -322,7 +322,7 @@ def _run_evaluate(args) -> None:
 
     # Re-run model to collect per-sample predicted spans for error dump
     pred_spans_per_sample = []
-    max_length = int(config.get("model", {}).get("max_length", 512))
+    max_length = int(config.data.max_seq_length)
     model.eval()
     import torch
     with torch.no_grad():

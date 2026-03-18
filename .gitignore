@@ -9,7 +9,11 @@ build/
 *.bin
 checkpoints/
 data/cache/
+data/training_dataset.json
+data/Backup/
 wandb/
+venv/
 .venv/
 .pytest_cache/
 .planning/
+config/trash/

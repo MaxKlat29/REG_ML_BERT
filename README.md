@@ -1,131 +1,124 @@
 # Regulatory Reference Extraction (REG_ML)
 
-A machine learning pipeline for extracting German legal references from regulatory text. The system uses a fine-tuned GBERT-Large model with BIO-tagged sequence labeling, evaluated against a regex baseline using entity-level metrics.
+ML-Pipeline zur Erkennung deutscher Rechtsreferenzen (§, Artikel, Anhang, Anlage, ISO-Normen, etc.) in regulatorischen und vertraglichen Texten. Fine-tuned **GBERT-Large** NER-Modell mit BIO-Labeling, evaluiert gegen eine Regex-Baseline.
 
 ## Pipeline
 
-```mermaid
-graph LR
-    A[Config] --> B[Data Generation]
-    B --> C[BIO Conversion]
-    C --> D[Train GBERT]
-    D --> E[Evaluate]
-    A --> F[Regex Baseline]
-    F --> E
-    E --> G[P/R/F1 Report]
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│  1. Generate │ ──▶ │   2. Train   │ ──▶ │ 3. Evaluate  │ ──▶ │  4. Predict  │
+│  (Ollama LLM)│     │  (GBERT NER) │     │  (vs Regex)  │     │  (Inference) │
+└──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
 ```
 
-**Config** loads hyperparameters from `config/default.yaml` with CLI overrides.
-**Data Generation** (Phase 2) uses an LLM via OpenRouter to create labeled training samples.
-**BIO Conversion** maps character-offset spans to B-REF/I-REF/O token labels.
-**Train GBERT** (Phase 3) fine-tunes `deepset/gbert-large` for NER.
-**Regex Baseline** provides the benchmark that the ML model must beat.
-**Evaluate** computes entity-level Precision, Recall, and F1 via seqeval.
-
-## Setup
-
-### Requirements
-
-- Python 3.10+
-- pip
-
-### Installation
+## Quickstart
 
 ```bash
-# Clone the repository
-git clone <repo-url>
-cd REG_ML
-
-# Install dependencies
+# Setup
+python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
-# Set up environment variables
-cp .env.example .env
-# Edit .env and add your OpenRouter API key
+# 1. Daten generieren (Ollama muss lokal laufen)
+python3 run.py generate --config config/gpu.yaml
+
+# 2. Training
+python3 run.py train --config config/gpu.yaml
+
+# 3. Evaluation
+python3 run.py evaluate --config config/gpu.yaml
+
+# 4. Inferenz
+python3 run.py predict --text "Gemäß § 25a KWG sind die Anforderungen zu beachten." -c config/gpu.yaml
 ```
 
-### Configuration
+## Architektur
 
-All hyperparameters are in `config/default.yaml`. Override via CLI:
+### Modell
+- **Backbone**: `deepset/gbert-large` (German BERT, 335M Parameter)
+- **Head**: Linear Classifier (3 Labels: O, B-REF, I-REF)
+- **Optional**: CRF-Layer, LoRA-Adapter, Gradient Checkpointing
+- **Loss**: Class-weighted CrossEntropyLoss (auto-berechnet aus Datendistribution)
 
+### Trainingsdaten
+- Synthetisch generiert via lokales **Ollama** (qwen2.5:7b)
+- 60+ Dokumenttypen (Gesetze, Verträge, SLAs, Richtlinien, Gutachten, ...)
+- `<ref>...</ref>` Tags → BIO-Labels via offset_mapping
+- ~40% Negativbeispiele (Texte ohne Referenzen)
+
+### Erkannte Referenztypen
+| Typ | Beispiele |
+|-----|-----------|
+| Paragraphen | § 25a KWG, §§ 305-310 BGB |
+| Artikel | Art. 5 DSGVO, Artikel 28 Abs. 1 |
+| Absätze/Nummern | Abs. 1, Nr. 3, lit. a, Satz 2 |
+| Vertragsklauseln | Ziffer 3.1, Punkt 4.2, Klausel 7 |
+| Anhänge/Anlagen | Anhang A, Anlage 3, Anhang 4b |
+| Abschnitte | Abschnitt 4.2, Kapitel 3, Teil B |
+| Normen/Standards | ISO 27001, DIN EN 62305, IDW PS 330 |
+| SLA-Verweise | SLA Ziffer 2.1, Service Level gemäß Anlage 2 |
+| Verordnungen | EU-Verordnung 2022/2554 |
+
+### Training Features
+- **Class-Weighted Loss**: Auto-berechnete inverse Frequenz-Gewichte (O≈0.4, B-REF≈19, I-REF≈4)
+- **Validation Split**: 10% Hold-out für Loss-Monitoring
+- **Early Stopping**: Stoppt nach 3 Epochen ohne Val-Loss-Verbesserung
+- **Mixed Precision**: fp16 auf CUDA, bf16 auf MPS
+- **Differential LR**: Backbone 2e-5, Head 1e-4
+
+## Konfiguration
+
+Zwei YAML-Configs:
+- `config/default.yaml` — CPU/Minimal (Tests, Debugging)
+- `config/gpu.yaml` — Produktion (RTX 3090)
+
+CLI-Overrides:
 ```bash
-python scripts/evaluate.py model.use_crf=false training.batch_size=8
+python3 run.py train --config config/gpu.yaml training.num_epochs=5 training.batch_size=8
 ```
 
-Key configuration sections:
-- `project` — name, seed
-- `device` — auto-detection (CUDA > MPS > CPU)
-- `model` — GBERT settings, CRF toggle, LoRA
-- `training` — batch size, learning rates, epochs
-- `data` — sequence length, LLM model, cache paths
-- `evaluation` — output directory
-
-## Usage
-
-### Run Regex Baseline Evaluation
-
-```bash
-PYTHONPATH=. python scripts/evaluate.py
-```
-
-Sample output:
-
-```
-Device: mps
-Seed: 42
-
-==================================================
-  Regex Baseline Evaluation Report
-==================================================
-
-  Precision:  1.0000
-  Recall:     1.0000
-  F1-Score:   1.0000
-
-  Detailed Report:
---------------------------------------------------
-              precision    recall  f1-score   support
-         REF       1.00      1.00      1.00         6
-   micro avg       1.00      1.00      1.00         6
-   macro avg       1.00      1.00      1.00         6
-weighted avg       1.00      1.00      1.00         6
-
-==================================================
-```
-
-## Project Structure
+## Projektstruktur
 
 ```
 REG_ML/
+├── run.py                        # CLI (generate, train, evaluate, predict)
 ├── config/
-│   └── default.yaml           # All hyperparameters
+│   ├── default.yaml              # Basis-Config
+│   └── gpu.yaml                  # GPU-Produktion
 ├── src/
-│   ├── __init__.py
+│   ├── model/
+│   │   ├── ner_model.py          # GBERT + Classifier + CRF/LoRA
+│   │   ├── trainer.py            # Training Loop, Early Stopping, Checkpoints
+│   │   └── predictor.py          # Inferenz
+│   ├── data/
+│   │   ├── generate_dataset.py   # Parallele LLM-Datengenerierung
+│   │   ├── llm_client.py         # Ollama Client + Prompt Builder
+│   │   ├── bio_converter.py      # Char-Spans → BIO-Labels
+│   │   ├── dataset.py            # IterableDataset
+│   │   └── cache.py              # JSONL Cache
 │   ├── evaluation/
-│   │   ├── __init__.py
-│   │   ├── regex_baseline.py  # Regex-based reference extractor
-│   │   ├── metrics.py         # BIO conversion + seqeval wrapper
-│   │   └── evaluator.py       # Runs baseline and computes metrics
+│   │   ├── evaluator.py          # Model vs Baseline Vergleich
+│   │   ├── regex_baseline.py     # 10-Typ Regex Baseline
+│   │   └── metrics.py            # seqeval P/R/F1
 │   └── utils/
-│       ├── __init__.py
-│       ├── config.py          # OmegaConf config loader
-│       └── device.py          # Device detection + seed setup
-├── scripts/
-│   └── evaluate.py            # CLI entry point for evaluation
+│       ├── config.py             # OmegaConf Loader
+│       └── device.py             # CUDA/MPS/CPU Detection
+├── tests/                        # 150 Tests
 ├── data/
-│   ├── gold_test/             # Gold test set (Phase 4)
-│   └── cache/                 # Data generation cache
-├── tests/
-│   ├── conftest.py            # Shared fixtures
-│   ├── test_config.py         # Config layer tests
-│   ├── test_regex_baseline.py # Regex baseline tests (10 ref types)
-│   ├── test_metrics.py        # BIO + seqeval tests
-│   └── test_docs.py           # Documentation existence tests
+│   └── gold_test/                # Gold-Testset
 ├── requirements.txt
-├── .env.example
-└── README.md
+└── .env.example
 ```
 
-## License
+## Tech Stack
 
-Internal PoC — not for public distribution.
+PyTorch, HuggingFace Transformers, pytorch-crf, PEFT (LoRA), Accelerate, OmegaConf, httpx, seqeval
+
+## Voraussetzungen
+
+- Python 3.10+
+- CUDA GPU (empfohlen: RTX 3090+) oder Apple Silicon (MPS)
+- [Ollama](https://ollama.ai) lokal mit `qwen2.5:7b` für Datengenerierung
+
+## Lizenz
+
+Internes PoC — nicht zur öffentlichen Verteilung.
