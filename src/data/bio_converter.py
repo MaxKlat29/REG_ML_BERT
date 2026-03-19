@@ -95,9 +95,10 @@ def char_spans_to_bio(
         # Determine label by checking overlap with each span
         assigned = LABEL_O
         for span_start, span_end in spans:
-            # Token is fully inside span
-            if tok_start >= span_start and tok_end <= span_end:
-                if tok_start == span_start:
+            # Token overlaps span (partial overlap is enough)
+            if tok_start < span_end and tok_end > span_start:
+                # B-REF if this token contains/touches span start
+                if tok_start <= span_start:
                     assigned = LABEL_B_REF
                 else:
                     assigned = LABEL_I_REF

@@ -544,6 +544,10 @@ class Trainer:
                     final_ckpt_path = best_ckpt_path
                     break
 
+        # Always return best checkpoint if validation was used
+        if val_samples and best_ckpt_path:
+            final_ckpt_path = best_ckpt_path
+
         total_time = time.time() - train_start
         print(f"\n{'━'*60}", flush=True)
         print(f" Training complete in {total_time:.1f}s | Final checkpoint: {final_ckpt_path}", flush=True)

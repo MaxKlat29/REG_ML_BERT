@@ -1,8 +1,8 @@
 """Parallel dataset generator for cross-reference NER training.
 
 Generates all training samples upfront via async Ollama LLM calls, converts to
-BIO-labeled encodings, and exports to JSON. Designed to run as a
-preprocessing step before training on the GPU workstation.
+BIO-labeled encodings, and exports to JSON. Samples are saved incrementally
+to a JSONL checkpoint file so that interrupted runs are recoverable.
 
 Usage:
     python run.py generate --config config/gpu.yaml
@@ -14,6 +14,8 @@ import asyncio
 import json
 import logging
 import os
+import random
+import signal
 import time
 from pathlib import Path
 
@@ -84,14 +86,19 @@ async def generate_all(
     tokenizer,
     total_samples: int,
     concurrency: int = DEFAULT_CONCURRENCY,
+    checkpoint_path: Path | None = None,
 ) -> list[dict]:
-    """Generate all training samples in parallel.
+    """Generate all training samples in parallel with incremental checkpointing.
+
+    Samples are appended to a JSONL checkpoint file as they complete,
+    so interrupted runs can be recovered.
 
     Args:
         config: OmegaConf config with data.llm_model, data.max_seq_length, etc.
         tokenizer: Fast HuggingFace tokenizer.
         total_samples: Total number of samples to generate.
         concurrency: Max parallel Ollama requests.
+        checkpoint_path: Path for the JSONL checkpoint file.
 
     Returns:
         List of encoding dicts with _meta field.
@@ -106,60 +113,105 @@ async def generate_all(
     results: list[dict] = []
     generated = 0
     skipped = 0
+    shutting_down = False
+
+    # Resume from checkpoint if it exists
+    existing_seeds: set[int] = set()
+    if checkpoint_path and checkpoint_path.exists():
+        with checkpoint_path.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                sample = json.loads(line)
+                results.append(sample)
+                existing_seeds.add(sample.get("_meta", {}).get("seed", -1))
+        generated = len(results)
+        print(
+            f"  [checkpoint] Resumed {generated} samples from {checkpoint_path}",
+            flush=True,
+        )
+
+    # Figure out which seeds still need generating
+    seeds_todo = [
+        base_seed + i
+        for i in range(total_samples)
+        if (base_seed + i) not in existing_seeds
+    ]
+    remaining = len(seeds_todo)
+
+    if remaining == 0:
+        print("  [generate] All samples already in checkpoint, nothing to do.", flush=True)
+        return results
 
     print(
-        f"  [generate] Starting {total_samples} Ollama calls "
+        f"  [generate] Starting {remaining} Ollama calls "
         f"(concurrency={concurrency}, model={model}, endpoint={endpoint})",
         flush=True,
     )
 
     start = time.time()
 
-    async with httpx.AsyncClient(timeout=180.0) as client:
-        tasks = [
-            _generate_one(
-                client,
-                model,
-                endpoint,
-                base_seed + i,
-                tokenizer,
-                max_seq_length,
-                negative_ratio,
-                semaphore,
-            )
-            for i in range(total_samples)
-        ]
+    # Open checkpoint for appending
+    if checkpoint_path:
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    ckpt_file = checkpoint_path.open("a", encoding="utf-8") if checkpoint_path else None
 
-        # Process with progress reporting
-        for i, coro in enumerate(asyncio.as_completed(tasks)):
-            result = await coro
-            if result is not None:
-                results.append(result)
-                generated += 1
-            else:
-                skipped += 1
-
-            done = generated + skipped
-            if done % 50 == 0 or done == total_samples:
-                elapsed = time.time() - start
-                rate = done / elapsed if elapsed > 0 else 0
-                pct = done / total_samples * 100
-                bar_len = 40
-                filled = int(bar_len * done // total_samples)
-                bar = "█" * filled + "░" * (bar_len - filled)
-                print(
-                    f"\r  [{bar}] {done}/{total_samples} ({pct:.0f}%) | "
-                    f"{generated} ok, {skipped} skipped | "
-                    f"{rate:.1f} samples/s",
-                    end="",
-                    flush=True,
+    try:
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            tasks = [
+                _generate_one(
+                    client, model, endpoint, seed,
+                    tokenizer, max_seq_length, negative_ratio, semaphore,
                 )
+                for seed in seeds_todo
+            ]
+
+            for coro in asyncio.as_completed(tasks):
+                if shutting_down:
+                    break
+                try:
+                    result = await coro
+                except asyncio.CancelledError:
+                    break
+
+                if result is not None:
+                    results.append(result)
+                    generated += 1
+                    if ckpt_file:
+                        ckpt_file.write(json.dumps(result, ensure_ascii=False) + "\n")
+                        ckpt_file.flush()
+                else:
+                    skipped += 1
+
+                done = generated + skipped
+                if done % 50 == 0 or done == generated + skipped:
+                    total_todo = remaining + len(existing_seeds)
+                    elapsed = time.time() - start
+                    rate = (done - len(existing_seeds)) / elapsed if elapsed > 0 else 0
+                    pct = done / total_todo * 100
+                    bar_len = 40
+                    filled = int(bar_len * done // total_todo)
+                    bar = "█" * filled + "░" * (bar_len - filled)
+                    print(
+                        f"\r  [{bar}] {done}/{total_todo} ({pct:.0f}%) | "
+                        f"{generated} ok, {skipped} skipped | "
+                        f"{rate:.1f} samples/s",
+                        end="",
+                        flush=True,
+                    )
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        print(f"\n  [generate] Interrupted — {generated} samples saved to checkpoint.", flush=True)
+    finally:
+        if ckpt_file:
+            ckpt_file.close()
 
     elapsed = time.time() - start
+    rate = (generated - len(existing_seeds)) / elapsed if elapsed > 0 else 0
     print(flush=True)
     print(
         f"  [generate] Done: {generated} samples in {elapsed:.1f}s "
-        f"({generated/elapsed:.1f} samples/s, {skipped} skipped)",
+        f"({rate:.1f} samples/s, {skipped} skipped)",
         flush=True,
     )
     return results
@@ -237,16 +289,96 @@ def run_generate(config, tokenizer, output_path: Path, concurrency: int = DEFAUL
         Path to the exported JSON.
     """
     total = config.data.total_samples
+    checkpoint_path = Path(output_path).with_suffix(".checkpoint.jsonl")
+
     print(f"\n{'━'*60}", flush=True)
     print(f" Dataset Generation: {total} samples", flush=True)
+    print(f" Checkpoint: {checkpoint_path}", flush=True)
     print(f"{'━'*60}", flush=True)
 
     samples = asyncio.run(
-        generate_all(config, tokenizer, total, concurrency=concurrency)
+        generate_all(config, tokenizer, total, concurrency=concurrency,
+                     checkpoint_path=checkpoint_path)
     )
 
     print(f"\n{'━'*60}", flush=True)
     print(f" Exporting to JSON", flush=True)
     print(f"{'━'*60}", flush=True)
 
-    return export_dataset_json(samples, output_path, config)
+    result = export_dataset_json(samples, output_path, config)
+
+    # Clean up checkpoint after successful export
+    if checkpoint_path.exists():
+        checkpoint_path.unlink()
+        print(f"  [checkpoint] Removed {checkpoint_path}", flush=True)
+
+    return result
+
+
+def merge_datasets(
+    output_path: Path,
+    source_paths: list[Path],
+    subsample_per_source: int | None = None,
+    per_source_limits: dict[str, int] | None = None,
+    seed: int = 42,
+) -> Path:
+    """Merge and optionally subsample multiple dataset JSON files.
+
+    Args:
+        output_path: Where to write the merged JSON.
+        source_paths: List of existing dataset JSON files.
+        subsample_per_source: Default max samples per source (fallback).
+        per_source_limits: Dict mapping source path string to per-file limit
+            (overrides subsample_per_source for that file).
+        seed: Random seed for reproducible subsampling.
+
+    Returns:
+        The output path.
+    """
+    rng = random.Random(seed)
+    per_source_limits = per_source_limits or {}
+    all_samples = []
+
+    for src in source_paths:
+        with src.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        samples = data["samples"]
+        total = len(samples)
+        model = data.get("metadata", {}).get("model", "unknown")
+
+        # Per-source limit takes priority, then global default
+        limit = per_source_limits.get(str(src), subsample_per_source)
+        if limit and len(samples) > limit:
+            samples = rng.sample(samples, limit)
+
+        # Tag source
+        for s in samples:
+            s["_source"] = str(src.name)
+
+        print(f"  [merge] {src.name}: {len(samples)}/{total} samples (model={model})", flush=True)
+        all_samples.extend(samples)
+
+    rng.shuffle(all_samples)
+
+    # Re-index
+    for idx, s in enumerate(all_samples):
+        s["index"] = idx
+
+    # Build merged metadata
+    merged = {
+        "metadata": {
+            "total_samples": len(all_samples),
+            "sources": [str(p) for p in source_paths],
+            "subsample_per_source": subsample_per_source,
+        },
+        "samples": all_samples,
+    }
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8") as f:
+        json.dump(merged, f, ensure_ascii=False, indent=2)
+
+    size_mb = output_path.stat().st_size / 1024 / 1024
+    print(f"  [merge] {len(all_samples)} total samples → {output_path} ({size_mb:.1f} MB)", flush=True)
+    return output_path

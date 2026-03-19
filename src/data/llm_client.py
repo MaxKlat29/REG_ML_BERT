@@ -170,6 +170,8 @@ async def call_ollama(
             "seed": seed,
             "temperature": 0.8,
             "top_p": 0.9,
+            "num_predict": 512,
+            "num_ctx": 2048,
         },
     }
 

@@ -148,6 +148,34 @@ def main(argv: list[str] | None = None) -> None:
         help="OmegaConf-style config overrides",
     )
 
+    # --- merge subcommand ---
+    merge_parser = subparsers.add_parser(
+        "merge",
+        help="Merge and subsample multiple dataset JSON files into one",
+    )
+    merge_parser.add_argument(
+        "sources",
+        nargs="+",
+        help="Paths to dataset JSON files. Use path:N to limit that source to N samples (e.g. data/old.json:5000)",
+    )
+    merge_parser.add_argument(
+        "--output", "-o",
+        default="data/training_dataset.json",
+        help="Output path for merged dataset (default: data/training_dataset.json)",
+    )
+    merge_parser.add_argument(
+        "--subsample", "-n",
+        type=int,
+        default=None,
+        help="Default max samples per source (overridden by per-source :N suffix)",
+    )
+    merge_parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for subsampling (default: 42)",
+    )
+
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
 
     if args.command == "train":
@@ -158,6 +186,49 @@ def main(argv: list[str] | None = None) -> None:
         _run_evaluate(args)
     elif args.command == "predict":
         _run_predict(args)
+    elif args.command == "merge":
+        _run_merge(args)
+
+
+def _run_merge(args) -> None:
+    """Merge and subsample multiple dataset JSON files."""
+    from pathlib import Path
+    from src.data.generate_dataset import merge_datasets
+
+    # Parse "path:N" syntax for per-source limits
+    sources = []
+    per_source_limits = {}
+    for raw in args.sources:
+        # Check for trailing :N (but don't split on Windows drive letters like C:\)
+        if ":" in raw:
+            parts = raw.rsplit(":", 1)
+            if parts[1].isdigit():
+                path = Path(parts[0])
+                per_source_limits[str(path)] = int(parts[1])
+                sources.append(path)
+                continue
+        sources.append(Path(raw))
+
+    for s in sources:
+        if not s.exists():
+            print(f"[merge] ERROR: {s} not found", flush=True)
+            sys.exit(1)
+
+    print(f"\n{'━'*60}", flush=True)
+    print(f" Merging {len(sources)} datasets", flush=True)
+    if args.subsample:
+        print(f" Default subsample: {args.subsample} per source", flush=True)
+    for path_str, limit in per_source_limits.items():
+        print(f" {Path(path_str).name}: capped at {limit}", flush=True)
+    print(f"{'━'*60}", flush=True)
+
+    result = merge_datasets(
+        Path(args.output), sources,
+        subsample_per_source=args.subsample,
+        per_source_limits=per_source_limits,
+        seed=args.seed,
+    )
+    print(f"\n[merge] Merged dataset ready: {result}", flush=True)
 
 
 def _run_generate(args) -> None:

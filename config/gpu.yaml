@@ -21,7 +21,7 @@ training:
 data:
   max_seq_length: 512
   samples_per_batch: 512
-  total_samples: 15000
+  total_samples: 10000
   dataset_path: "data/training_dataset.json"
   llm_model: "qwen2.5:7b"
   ollama_endpoint: "http://localhost:11434"
