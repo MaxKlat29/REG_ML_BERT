@@ -20,7 +20,7 @@ from src.model.trainer import CHECKPOINT_BASE, load_checkpoint
 from transformers import BertTokenizerFast
 
 # Global inference settings
-REF_THRESHOLD = 0.2
+REF_THRESHOLD = 0.35
 EXPAND_WORDS = 1
 
 logger = logging.getLogger(__name__)
